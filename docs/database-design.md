@@ -97,8 +97,49 @@ Owners can manage every role. Managers can add and change cashiers, hosts, waite
 
 ## Isolation between restaurants
 
-Every restaurant-scoped route has `:restaurantId` in its path and goes through `requireMembership`. That middleware loads the caller's own active membership for that restaurant. If there is none, it answers 404, the same answer as for a restaurant that does not exist, so one restaurant cannot find out another's IDs. Later tables (tables, orders, tickets, stock) will carry `restaurant_id` and be read only through this check.
+Every restaurant-scoped route has `:restaurantId` in its path and goes through `requireMembership`. That middleware loads the caller's own active membership for that restaurant. If there is none, it answers 404, the same answer as for a restaurant that does not exist, so one restaurant cannot find out another's IDs. Service tables carry `restaurant_id` and are read only through this check (see Service below).
 
 ## Sessions
 
 Each sign-in issues a 12-hour JWT whose `jti` is stored in `auth_sessions`. Every API request checks that the `jti` is still active, so signing out revokes the session immediately. Expired rows are cleaned up when the next session is created.
+
+## Service
+
+```mermaid
+erDiagram
+    RESTAURANTS ||--o{ DINING_TABLES : has
+    RESTAURANTS ||--o{ MENU_CATEGORIES : has
+    MENU_CATEGORIES ||--o{ MENU_ITEMS : contains
+    MENU_ITEMS ||--o{ MENU_ITEM_OPTIONS : offers
+    DINING_TABLES ||--o{ ORDERS : "seats (one open at a time)"
+    ORDERS ||--o{ ORDER_ITEMS : contains
+    ORDERS ||--o{ KITCHEN_TICKETS : "sent as"
+    KITCHEN_TICKETS ||--o{ ORDER_ITEMS : groups
+    MENU_ITEMS ||--o{ ORDER_ITEMS : "copied into"
+    ORDERS ||--o| BILLS : "billed by"
+    BILLS ||--o{ PAYMENTS : "paid by"
+```
+
+Restaurants also carry `service_charge_pct`, `vat_pct` (each 0 to 30) and `receipt_footer`.
+
+**Keeping restaurants apart in the database.** Each service table has `restaurant_id`, and every parent has a `UNIQUE (restaurant_id, id)` key. Children reference that pair, for example `orders (restaurant_id, table_id) → dining_tables (restaurant_id, id)`. So an order cannot point at another restaurant's table, and an order line cannot point at another restaurant's dish, even if the API had a bug. Every `dineniro_*` service function also takes the restaurant ID first and filters by it.
+
+**A visit.** `orders.status` moves `open → billed → paid`, or `open → void` when guests leave before anything was sent. A partial unique index (`uq_orders_active_table`) allows only one open or billed order per table.
+
+**Order lines.** `order_items` copies the dish name and its price including chosen options, so editing the menu never changes a past order. Lines start as `draft`. Tapping the same dish with the same options and note adds to the draft line. Sending turns every draft line into `sent` and groups them into one kitchen ticket. A sent line can't be deleted: a manager voids it with a reason, and voided lines are not billed or printed.
+
+**Kitchen tickets** move `new → cooking → ready → served`. `dineniro_ticket_advance` must be told the status the ticket is moving from, so a second tap from another screen cannot skip a step. Ticket numbers count up per restaurant, serialised by locking the restaurant row.
+
+**Bills.** `dineniro_bill_prepare` refuses while dishes are unsent, then fixes the amounts:
+
+```
+food      = sum of sent lines
+discount  ≤ food                      (managers and owners only)
+service   = round((food − discount) × service %, 2)
+VAT       = round((food − discount + service) × VAT %, 2)
+total     = food − discount + service + VAT
+```
+
+Adding food after the bill is printed drops the bill and reopens the order, unless a payment has already been taken. Then the change is refused.
+
+**Payments.** Cash, card, bKash or Nagad. `dineniro_payment_add` locks the bill and refuses anything above what is left. When payments cover the total, the bill and order close and the table shows as free. Cash stores the amount received (`tendered`) for the change line. bKash and Nagad require the transaction ID, enforced by the API.

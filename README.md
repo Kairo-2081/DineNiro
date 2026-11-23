@@ -18,25 +18,50 @@ A multi-restaurant platform: each restaurant gets its own workspace and team, an
 
 ## What works today
 
-DineNiro is being built in stages. This first stage is the foundation everything else sits on:
+**Running a service**
+
+- **Floor.** Tables by section, coloured by what is happening at each one: free, seated, cooking, food ready, served, bill printed. Hosts and waiters seat guests with one tap.
+- **Orders.** Waiters order from the menu by category or search, with priced options ("Extra aloo +৳30") and notes for the kitchen. Sold-out dishes can't be ordered. Nothing reaches the kitchen until they press Send.
+- **Kitchen display.** Tickets move New → Cooking → Ready → Served, filtered by station, with timers that turn amber at 10 minutes and red when late. The floor sees food-ready tables at once.
+- **Bills and payment.** Discount (managers only), then service charge, then VAT, at the restaurant's own rates. Split by number of guests and pay by cash (with change), card, bKash or Nagad. The receipt prints on 80 mm thermal paper with the restaurant's BIN. Paying in full frees the table.
+- **Setup.** Owners and managers add tables, menu categories and dishes, mark dishes sold out, and set billing rates.
+
+| Floor | Order |
+|---|---|
+| <img src="./.github/assets/readme/floor.jpg" alt="Floor plan with tables coloured by status" /> | <img src="./.github/assets/readme/order.jpg" alt="Waiter ordering for a table" /> |
+| **Kitchen display** | **Bill and receipt** |
+| <img src="./.github/assets/readme/kitchen.jpg" alt="Kitchen tickets in New, Cooking and Ready columns" /> | <img src="./.github/assets/readme/bill-receipt.jpg" alt="Paid bill with the printed receipt" /> |
+
+**The platform**
 
 - **Restaurant applications.** An owner applies with the restaurant's details, trade licence and VAT BIN, and can sign in straight away to see where the application stands.
-- **Platform approvals.** A platform admin sees applications by status, approves, rejects or suspends with a reason, reinstates or reopens, and has a full audit trail of who changed what.
-- **Teams and roles.** Once approved, owners and managers add staff as manager, cashier, host, waiter or chef, change roles, and pause or remove access. Only owners can manage owners and managers, and a restaurant always keeps at least one owner.
-- **Isolation between restaurants.** Every restaurant request is checked against the signed-in person's own membership. Another restaurant's data simply isn't found.
+- **Platform approvals.** A platform admin approves, rejects or suspends with a reason, reinstates or reopens, and has a full audit trail of who changed what.
+- **Teams and roles.** Owners and managers add staff as manager, cashier, host, waiter or chef. Each role sees only the screens it uses: chefs open straight into the kitchen, cashiers into bills.
+- **Isolation between restaurants.** Every restaurant request is checked against the signed-in person's own membership, and the database itself stops an order from pointing at another restaurant's table or dish.
 
-| Platform admin | Owner's team |
-|---|---|
-| <img src="./.github/assets/readme/admin-approvals.jpg" alt="Approvals queue with the audit trail" /> | <img src="./.github/assets/readme/owner-team.jpg" alt="Team management for an approved restaurant" /> |
+### Who can do what
+
+| | Owner | Manager | Waiter | Host | Cashier | Chef |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|
+| Seat a table | ✓ | ✓ | ✓ | ✓ | | |
+| Order and send to the kitchen | ✓ | ✓ | ✓ | | | |
+| Void a sent dish, give a discount | ✓ | ✓ | | | | |
+| Kitchen display: start and finish tickets | ✓ | ✓ | | | | ✓ |
+| Mark ready food as served | ✓ | ✓ | ✓ | | | ✓ |
+| Print the bill | ✓ | ✓ | ✓ | | ✓ | |
+| Take payment | ✓ | ✓ | | | ✓ | |
+| Tables, menu, billing rates, team | ✓ | ✓ | | | | |
+
+Managers manage cashiers, hosts, waiters and chefs. Only owners manage owners and managers.
 
 ### Coming next
 
 | Stage | What it adds |
 |---|---|
-| Service | Floor plan and tables, menu with modifiers, table orders, kitchen display, bills with split payment (cash, card, bKash, Nagad) and printed receipts |
 | Reservations | Bookings by time slot, a walk-in waitlist, no double-booked tables |
 | Inventory | Ingredients, recipes that deduct stock as tickets are fired, low-stock alerts |
 | Reports | Daily sales, top dishes, staff totals, payment mix |
+| Printing | Automatic receipt and kitchen-ticket printing through a small helper on the counter PC (browsers can't print silently) |
 
 ## Get started
 
@@ -60,7 +85,7 @@ Fill in `.env`:
 npm run dev      # http://localhost:3000
 ```
 
-The schema is applied on start-up. Sign in as `admin` with your admin password, then apply for a restaurant from a private window and approve it.
+The schema is applied on start-up. Sign in as `admin` with your admin password, then apply for a restaurant from a private window and approve it. As the owner, open **Setup** to add tables and dishes, and **Team** to add staff.
 
 ## Tests
 
@@ -70,7 +95,7 @@ npm test         # unit tests; API tests too when TEST_DATABASE_URL is set
 TEST_DATABASE_URL=postgresql://postgres@localhost:5432/dineniro_test npm test
 ```
 
-The API tests start the real server against that database and **wipe it first**, so point them at a database you don't need. They cover applying, the approval rules and audit trail, owner and manager limits, the last-owner rule, isolation between restaurants, and session revocation.
+The API tests start the real server against that database and **wipe it first**, so point them at a database you don't need. They cover applying, the approval rules and audit trail, owner and manager limits, the last-owner rule, isolation between restaurants, session revocation, and a whole dinner service: setup, seating, ordering with options, the kitchen ticket's steps, voids, discounts, VAT and service charge, split payment and the receipt.
 
 ## API
 
@@ -88,6 +113,28 @@ The API tests start the real server against that database and **wipe it first**,
 | `PUT` | `/api/admin/restaurants/:id/status` | platform admins |
 | `GET` | `/api/admin/restaurants/audit` | platform admins |
 | `POST` | `/api/admin/admins` | platform admins |
+
+Service routes, all under `/api/restaurants/:restaurantId` for approved restaurants (roles as in the table above):
+
+| Method | Path | What it does |
+|---|---|---|
+| `PATCH` | `/settings` | service charge %, VAT %, receipt footer |
+| `GET` `POST` / `PUT` | `/tables`, `/tables/:tableId` | tables |
+| `GET` | `/menu` | categories with dishes and options |
+| `POST` `PUT` `DELETE` | `/categories`, `/categories/:id` | menu categories |
+| `POST` `PUT` | `/menu-items`, `/menu-items/:id` | dishes and their options |
+| `GET` | `/floor` | every table with its current state |
+| `POST` | `/orders` | seat a table |
+| `GET` | `/orders/:orderId` | an order with its lines |
+| `POST` `PATCH` | `/orders/:orderId/items`, `/items/:itemId` | add a dish, change or remove an unsent one |
+| `POST` | `/orders/:orderId/items/:itemId/void` | void a sent dish with a reason |
+| `POST` | `/orders/:orderId/send` | send unsent dishes to the kitchen |
+| `POST` | `/orders/:orderId/void` | cancel a visit where nothing was sent |
+| `GET` | `/kitchen` | open tickets |
+| `POST` | `/kitchen/:ticketId/advance` | move a ticket one step, naming its current status |
+| `POST` | `/orders/:orderId/bill` | print (or reprint with a discount) the bill |
+| `GET` | `/bills`, `/bills/:billId` | recent bills; one bill with everything for its receipt |
+| `POST` | `/bills/:billId/payments` | take a payment |
 
 ## Architecture
 
