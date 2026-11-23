@@ -354,3 +354,40 @@ export interface RecipeLine {
   quantity: number;
   unitCost: number;
 }
+
+// Reports.
+
+export interface ReportSummary {
+  bills: number;
+  covers: number;
+  /** Food and drink before discount. */
+  foodSales: number;
+  discounts: number;
+  discountedBills: number;
+  serviceCharge: number;
+  vat: number;
+  /** What guests paid in total. */
+  total: number;
+  /** Food sales after discount, before service charge and VAT. */
+  netSales: number;
+  averageCheck: number;
+  perCover: number;
+  voidedLines: number;
+  voidedValue: number;
+  /** Ingredient cost of dishes sold that have a recipe, and those dishes' sales, for food cost %. */
+  foodCost: number;
+  costedSales: number;
+  averageTurnMinutes: number | null;
+}
+
+export interface SalesReport {
+  from: string;
+  to: string;
+  bucket: 'hour' | 'day';
+  summary: ReportSummary;
+  previous: ReportSummary;
+  series: { bucket: string; bills: number; covers: number; total: number }[];
+  dishes: { menuItemId: string; name: string; quantity: number; sales: number }[];
+  staff: { userId: string | null; name: string; tables: number; covers: number; total: number; averageTurnMinutes: number | null }[];
+  payments: { method: PaymentMethod; payments: number; amount: number }[];
+}
