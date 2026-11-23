@@ -68,6 +68,7 @@ export function mapRestaurant(row: any): Restaurant {
     cuisine: row.cuisine || '', tradeLicenceNo: row.trade_licence_no || '', vatBin: row.vat_bin || '',
     status: row.status, statusReason: row.status_reason || '',
     createdAt: iso(row.created_at), statusChangedAt: iso(row.status_changed_at),
+    serviceChargePct: Number(row.service_charge_pct ?? 0), vatPct: Number(row.vat_pct ?? 0), receiptFooter: row.receipt_footer || '',
   };
 }
 
@@ -82,20 +83,38 @@ export function mapStaffMember(row: any): StaffMember {
 export function respondApiError(res: Response, error: unknown, message: string) {
   const dbError = error as { code?: string; message?: string; constraint?: string };
 
-  if (dbError?.code === 'P0001' && /^(Status Error|Staff Error):/.test(dbError.message || '')) {
-    return res.status(409).json({ error: dbError.message!.replace(/^(Status Error|Staff Error):\s*/, '') });
+  if (dbError?.code === 'P0001' && /^(Status|Staff|Service) Error:/.test(dbError.message || '')) {
+    return res.status(409).json({ error: dbError.message!.replace(/^(Status|Staff|Service) Error:\s*/, '') });
   }
   if (dbError?.code === '23505') {
     if (dbError.constraint === 'uq_users_email_lower') return res.status(409).json({ error: 'An account with this email already exists.' });
     if (dbError.constraint === 'uq_users_username_lower') return res.status(409).json({ error: 'This username is taken.' });
     if (dbError.constraint === 'staff_memberships_pkey') return res.status(409).json({ error: 'This person already works at this restaurant.' });
+    if (dbError.constraint === 'uq_dining_tables_label') return res.status(409).json({ error: 'There is already a table with this name.' });
+    if (dbError.constraint === 'uq_menu_categories_name') return res.status(409).json({ error: 'There is already a category with this name.' });
+    if (dbError.constraint === 'uq_orders_active_table') return res.status(409).json({ error: 'This table is already seated.' });
     return res.status(409).json({ error: 'A resource with these unique values already exists.' });
   }
 
+  if (dbError?.code === '40001' || dbError?.code === '40P01') {
+    return res.status(409).json({ error: 'Someone else changed this at the same moment. Try again.' });
+  }
   console.error(message, error);
   if (dbError?.code === '23503') return res.status(409).json({ error: 'The request conflicts with a related resource.' });
   if (dbError?.code === '23502' || dbError?.code === '23514' || dbError?.code?.startsWith('22')) {
     return res.status(400).json({ error: 'The request contains invalid data.' });
   }
   return res.status(500).json({ error: 'Internal server error' });
+}
+
+/** Postgres NUMERIC arrives as a string; amounts in the API are plain numbers in taka. */
+export const money = (value: unknown) => Math.round(Number(value ?? 0) * 100) / 100;
+
+/** A taka amount with at most two decimals, e.g. from a form. */
+export function isAmount(value: unknown, { min = 0, max = 10_000_000 } = {}): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max && Math.abs(Math.round(value * 100) - value * 100) < 1e-6;
+}
+
+export function isWholeNumber(value: unknown, min: number, max: number): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max;
 }

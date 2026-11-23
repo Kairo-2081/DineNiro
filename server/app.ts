@@ -5,6 +5,8 @@ import authRoutes from './routes/auth.routes.ts';
 import restaurantsRoutes from './routes/restaurants.routes.ts';
 import staffRoutes from './routes/staff.routes.ts';
 import adminRoutes from './routes/admin.routes.ts';
+import setupRoutes from './routes/setup.routes.ts';
+import serviceRoutes from './routes/service.routes.ts';
 import { assertJwtSecret, authenticateApiRequest } from './middleware/auth.ts';
 
 /** The API on its own, without Vite or static files, so tests can run it directly. */
@@ -32,6 +34,8 @@ export function createApp() {
   app.use(restaurantsRoutes);
   app.use(staffRoutes);
   app.use(adminRoutes);
+  app.use(setupRoutes);
+  app.use(serviceRoutes);
   app.use('/api', (_req, res) => res.status(404).json({ error: 'API endpoint not found.' }));
   app.use(errorHandler);
   return app;
