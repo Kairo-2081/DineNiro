@@ -9,6 +9,7 @@ export type Screen =
   | { name: 'bills'; billId?: string }
   | { name: 'bookings' }
   | { name: 'stock' }
+  | { name: 'reports' }
   | { name: 'setup' }
   | { name: 'team' };
 
@@ -16,8 +17,8 @@ export type ScreenName = Screen['name'];
 
 /** Which side-menu screens each role sees. The API enforces the same rules; this only hides what would be refused. */
 export const SCREENS_FOR_ROLE: Record<StaffRole, ScreenName[]> = {
-  owner: ['floor', 'bookings', 'kitchen', 'bills', 'stock', 'setup', 'team'],
-  manager: ['floor', 'bookings', 'kitchen', 'bills', 'stock', 'setup', 'team'],
+  owner: ['floor', 'bookings', 'kitchen', 'bills', 'stock', 'reports', 'setup', 'team'],
+  manager: ['floor', 'bookings', 'kitchen', 'bills', 'stock', 'reports', 'setup', 'team'],
   waiter: ['floor', 'bookings', 'kitchen', 'bills'],
   host: ['floor', 'bookings'],
   cashier: ['floor', 'bookings', 'bills'],
