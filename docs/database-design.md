@@ -143,3 +143,31 @@ total     = food − discount + service + VAT
 Adding food after the bill is printed drops the bill and reopens the order, unless a payment has already been taken. Then the change is refused.
 
 **Payments.** Cash, card, bKash or Nagad. `dineniro_payment_add` locks the bill and refuses anything above what is left. When payments cover the total, the bill and order close and the table shows as free. Cash stores the amount received (`tendered`) for the change line. bKash and Nagad require the transaction ID, enforced by the API.
+
+## Reservations and the waitlist
+
+```mermaid
+erDiagram
+    DINING_TABLES ||--o{ RESERVATIONS : "booked as"
+    RESERVATIONS |o--o| ORDERS : "seated as"
+    WAITLIST_ENTRIES |o--o| ORDERS : "seated as"
+```
+
+**No double booking.** `reservations` has an exclusion constraint:
+
+```sql
+EXCLUDE USING gist (table_id WITH =, tstzrange(starts_at, ends_at) WITH &&)
+WHERE (status IN ('booked', 'seated'))
+```
+
+Two live bookings for the same table can never overlap. Ranges are half-open, so a 6–7:30 pm booking and a 7:30–9 pm booking on the same table are both allowed. This needs the `btree_gist` extension, which the schema creates. Because the check is in the database, it holds even when two hosts press Book at the same moment. One succeeds and the other gets a plain-language 409.
+
+**Booking life.** `booked → seated → completed`, or `booked → cancelled / no_show`. Cancelling or a no-show frees the time at once. Seating a booking opens an order at its table (`dineniro_reservation_seat`). When that order is paid or voided, the trigger `trigger_complete_reservation` marks the booking completed and trims its end time to now, so the rest of its slot can be booked again.
+
+**Availability.** `dineniro_tables_available` lists active tables that seat the party (allowing two extra chairs) and have no live booking overlapping the requested time. Tables that fit without extra chairs come first, then the smallest.
+
+**Waitlist.** `waitlist_entries` are `waiting`, `seated` or `left`. `dineniro_waitlist_seat` refuses a table with a booking starting within the next hour, so walk-ins don't take a booked party's table.
+
+**On the floor.** `dineniro_floor` includes each table's next live booking in the next 12 hours. A free table whose booking starts within the hour, or whose guests are running late, has state `reserved`.
+
+Requires PostgreSQL 15 or later: the foreign keys from bookings and waitlist entries to orders use `ON DELETE SET NULL (order_id)`.

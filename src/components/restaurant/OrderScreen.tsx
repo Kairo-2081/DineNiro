@@ -127,7 +127,7 @@ export function OrderScreen({ orderId }: { orderId: string }) {
     run(() => calls.addItem(orderId, { menuItemId: item.id, quantity, optionIds, note }), () => setPicking(null));
 
   return (
-    <div className="flex min-h-screen flex-1 flex-wrap">
+    <div className="flex min-h-screen min-w-0 flex-1 flex-wrap">
       <main className="flex min-w-0 flex-[999_1_560px] flex-col gap-4 px-6 py-6 sm:px-8">
         <ScreenHeader
           back={<button type="button" onClick={() => go({ name: 'floor' })} className="w-fit cursor-pointer border-0 bg-transparent p-0 text-xs font-semibold uppercase tracking-[0.12em] text-[#e8b77d]">← Floor</button>}

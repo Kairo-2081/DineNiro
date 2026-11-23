@@ -1,7 +1,7 @@
 import type {
   Bill, BillSummary, DiningTable, FloorTable, KitchenTicket, MenuCategory, MenuItem, NewStaffMember, Order, PaymentMethod,
   PlatformStats, Receipt, Restaurant, RestaurantApplication, RestaurantStatus, RestaurantStatusChange, RestaurantSummary,
-  Session, StaffMember, StaffRole, Station, TableShape, TicketStatus,
+  Session, StaffMember, StaffRole, Station, TableShape, TicketStatus, AvailableTable, NewReservation, Reservation, WaitlistEntry,
 } from '../types';
 
 export class ApiError extends Error {
@@ -101,6 +101,20 @@ export const api = {
       receipt: (billId: string) => request<Receipt>('GET', r(`/bills/${enc(billId)}`)),
       pay: (billId: string, payment: { method: PaymentMethod; amount: number; tendered?: number; reference?: string }) =>
         request<Bill>('POST', r(`/bills/${enc(billId)}/payments`), payment),
+
+      reservations: (from: string, to: string) =>
+        request<Reservation[]>('GET', r(`/reservations?from=${enc(from)}&to=${enc(to)}`)),
+      availability: (startsAt: string, minutes: number, party: number, ignore?: string) =>
+        request<AvailableTable[]>('GET', r(`/availability?startsAt=${enc(startsAt)}&minutes=${minutes}&party=${party}${ignore ? `&ignore=${enc(ignore)}` : ''}`)),
+      book: (booking: NewReservation & { id?: string }) =>
+        booking.id ? request<Reservation>('PUT', r(`/reservations/${enc(booking.id)}`), booking) : request<Reservation>('POST', r('/reservations'), booking),
+      closeBooking: (id: string, status: 'cancelled' | 'no_show') => request<Reservation>('POST', r(`/reservations/${enc(id)}/close`), { status }),
+      seatBooking: (id: string) => request<{ orderId: string }>('POST', r(`/reservations/${enc(id)}/seat`)),
+      waitlist: () => request<WaitlistEntry[]>('GET', r('/waitlist')),
+      addToWaitlist: (entry: { guestName: string; phone?: string; partySize: number; quotedMinutes?: number; note?: string }) =>
+        request<WaitlistEntry>('POST', r('/waitlist'), entry),
+      waitlistLeft: (id: string) => request<void>('POST', r(`/waitlist/${enc(id)}/left`)),
+      seatFromWaitlist: (id: string, tableId: string) => request<{ orderId: string }>('POST', r(`/waitlist/${enc(id)}/seat`), { tableId }),
     };
   },
 };

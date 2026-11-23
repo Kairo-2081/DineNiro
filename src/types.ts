@@ -115,7 +115,7 @@ export interface NewStaffMember {
 
 export type TableShape = 'square' | 'round' | 'long';
 export type Station = 'kitchen' | 'tandoor' | 'bar' | 'dessert';
-export type TableState = 'free' | 'seated' | 'cooking' | 'ready' | 'served' | 'bill';
+export type TableState = 'free' | 'reserved' | 'seated' | 'cooking' | 'ready' | 'served' | 'bill';
 export type OrderStatus = 'open' | 'billed' | 'paid' | 'void';
 export type TicketStatus = 'new' | 'cooking' | 'ready' | 'served';
 export type PaymentMethod = 'cash' | 'card' | 'bkash' | 'nagad';
@@ -146,6 +146,8 @@ export interface FloorTable {
   serverName: string | null;
   runningTotal: number;
   unsentItems: number;
+  /** The table's next upcoming booking in the next 12 hours, if any. */
+  nextBooking: { id: string; startsAt: string; guestName: string; partySize: number } | null;
 }
 
 export interface MenuOption {
@@ -260,4 +262,50 @@ export interface BillSummary {
   createdAt: string;
   paidAt: string | null;
   methods: string;
+}
+
+// Reservations and the waitlist.
+
+export type ReservationStatus = 'booked' | 'seated' | 'completed' | 'cancelled' | 'no_show';
+
+export interface Reservation {
+  id: string;
+  tableId: string;
+  tableLabel: string;
+  guestName: string;
+  phone: string;
+  partySize: number;
+  startsAt: string;
+  endsAt: string;
+  status: ReservationStatus;
+  note: string;
+  orderId: string | null;
+  createdByName: string | null;
+}
+
+export interface NewReservation {
+  tableId: string;
+  guestName: string;
+  phone?: string;
+  partySize: number;
+  startsAt: string;
+  durationMinutes: number;
+  note?: string;
+}
+
+export interface AvailableTable {
+  tableId: string;
+  label: string;
+  seats: number;
+  section: string;
+}
+
+export interface WaitlistEntry {
+  id: string;
+  guestName: string;
+  phone: string;
+  partySize: number;
+  quotedMinutes: number;
+  note: string;
+  addedAt: string;
 }

@@ -7,6 +7,7 @@ export type Screen =
   | { name: 'order'; orderId: string }
   | { name: 'kitchen' }
   | { name: 'bills'; billId?: string }
+  | { name: 'bookings' }
   | { name: 'setup' }
   | { name: 'team' };
 
@@ -14,11 +15,11 @@ export type ScreenName = Screen['name'];
 
 /** Which side-menu screens each role sees. The API enforces the same rules; this only hides what would be refused. */
 export const SCREENS_FOR_ROLE: Record<StaffRole, ScreenName[]> = {
-  owner: ['floor', 'kitchen', 'bills', 'setup', 'team'],
-  manager: ['floor', 'kitchen', 'bills', 'setup', 'team'],
-  waiter: ['floor', 'kitchen', 'bills'],
-  host: ['floor'],
-  cashier: ['floor', 'bills'],
+  owner: ['floor', 'bookings', 'kitchen', 'bills', 'setup', 'team'],
+  manager: ['floor', 'bookings', 'kitchen', 'bills', 'setup', 'team'],
+  waiter: ['floor', 'bookings', 'kitchen', 'bills'],
+  host: ['floor', 'bookings'],
+  cashier: ['floor', 'bookings', 'bills'],
   chef: ['kitchen'],
 };
 
@@ -35,6 +36,7 @@ export const can = {
   bill: (role: StaffRole) => ['owner', 'manager', 'cashier', 'waiter'].includes(role),
   takePayment: (role: StaffRole) => ['owner', 'manager', 'cashier'].includes(role),
   cook: (role: StaffRole) => ['owner', 'manager', 'chef'].includes(role),
+  book: (role: StaffRole) => ['owner', 'manager', 'host', 'waiter'].includes(role),
 };
 
 interface WorkspaceValue {
@@ -46,6 +48,8 @@ interface WorkspaceValue {
   calls: ReturnType<typeof api.at>;
   screen: Screen;
   go: (screen: Screen) => void;
+  /** Where to go once a table is seated: the order for those who take orders, the floor for hosts. */
+  afterSeating: (orderId: string) => void;
   switchRestaurant: (restaurantId: string) => void;
 }
 

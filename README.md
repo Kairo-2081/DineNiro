@@ -24,6 +24,8 @@ A multi-restaurant platform: each restaurant gets its own workspace and team, an
 - **Orders.** Waiters order from the menu by category or search, with priced options ("Extra aloo +৳30") and notes for the kitchen. Sold-out dishes can't be ordered. Nothing reaches the kitchen until they press Send.
 - **Kitchen display.** Tickets move New → Cooking → Ready → Served, filtered by station, with timers that turn amber at 10 minutes and red when late. The floor sees food-ready tables at once.
 - **Bills and payment.** Discount (managers only), then service charge, then VAT, at the restaurant's own rates. Split by number of guests and pay by cash (with change), card, bKash or Nagad. The receipt prints on 80 mm thermal paper with the restaurant's BIN. Paying in full frees the table.
+- **Reservations.** A day timeline of tables from 11:00 to midnight. Tap an empty spot to book it, or let DineNiro suggest tables that fit the party and are free for the whole time. The database itself refuses overlapping bookings, even two made at the same moment. Tables booked within the hour show as Reserved on the floor.
+- **Waitlist.** Walk-ins with a quoted wait. DineNiro flags anyone waiting longer than quoted, and won't seat a walk-in at a table booked within the hour.
 - **Setup.** Owners and managers add tables, menu categories and dishes, mark dishes sold out, and set billing rates.
 
 | Floor | Order |
@@ -44,6 +46,7 @@ A multi-restaurant platform: each restaurant gets its own workspace and team, an
 | | Owner | Manager | Waiter | Host | Cashier | Chef |
 |---|:-:|:-:|:-:|:-:|:-:|:-:|
 | Seat a table | ✓ | ✓ | ✓ | ✓ | | |
+| Bookings and waitlist | ✓ | ✓ | ✓ | ✓ | view | |
 | Order and send to the kitchen | ✓ | ✓ | ✓ | | | |
 | Void a sent dish, give a discount | ✓ | ✓ | | | | |
 | Kitchen display: start and finish tickets | ✓ | ✓ | | | | ✓ |
@@ -58,14 +61,13 @@ Managers manage cashiers, hosts, waiters and chefs. Only owners manage owners an
 
 | Stage | What it adds |
 |---|---|
-| Reservations | Bookings by time slot, a walk-in waitlist, no double-booked tables |
 | Inventory | Ingredients, recipes that deduct stock as tickets are fired, low-stock alerts |
 | Reports | Daily sales, top dishes, staff totals, payment mix |
 | Printing | Automatic receipt and kitchen-ticket printing through a small helper on the counter PC (browsers can't print silently) |
 
 ## Get started
 
-You need Node.js 20 or later and a PostgreSQL database.
+You need Node.js 20 or later and PostgreSQL 15 or later (with the standard `btree_gist` extension, which Supabase and Neon both provide).
 
 ```bash
 npm ci
@@ -135,6 +137,11 @@ Service routes, all under `/api/restaurants/:restaurantId` for approved restaura
 | `POST` | `/orders/:orderId/bill` | print (or reprint with a discount) the bill |
 | `GET` | `/bills`, `/bills/:billId` | recent bills; one bill with everything for its receipt |
 | `POST` | `/bills/:billId/payments` | take a payment |
+| `GET` `POST` / `PUT` | `/reservations?from=&to=`, `/reservations/:id` | bookings in a time range; book or change |
+| `POST` | `/reservations/:id/close`, `/reservations/:id/seat` | cancel or no-show; seat the party |
+| `GET` | `/availability?startsAt=&minutes=&party=` | tables free for that time that fit the party |
+| `GET` `POST` | `/waitlist` | waiting walk-ins; add one |
+| `POST` | `/waitlist/:id/seat`, `/waitlist/:id/left` | seat at a table; they left |
 
 ## Architecture
 
