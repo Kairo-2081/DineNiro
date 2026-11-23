@@ -166,6 +166,10 @@ export interface MenuItem {
   available: boolean;
   sortOrder: number;
   options: MenuOption[];
+  /** How many more portions recorded stock allows; null when the dish has no recipe. */
+  portionsLeft: number | null;
+  /** Ingredient cost of one portion at current prices; null when the dish has no recipe. */
+  foodCost: number | null;
 }
 
 export interface MenuCategory {
@@ -308,4 +312,45 @@ export interface WaitlistEntry {
   quotedMinutes: number;
   note: string;
   addedAt: string;
+}
+
+// Inventory.
+
+export type StockUnit = 'kg' | 'g' | 'l' | 'ml' | 'pc';
+export const STOCK_UNITS: StockUnit[] = ['kg', 'g', 'l', 'ml', 'pc'];
+export type StockReason = 'sale' | 'void' | 'delivery' | 'count' | 'waste';
+
+export interface Ingredient {
+  id: string;
+  name: string;
+  category: string;
+  unit: StockUnit;
+  onHand: number;
+  parLevel: number;
+  unitCost: number;
+  supplier: string;
+  active: boolean;
+  usedToday: number;
+  usedPerDay: number;
+  /** Number of dishes whose recipe uses it. */
+  dishes: number;
+}
+
+export interface StockMovement {
+  id: number;
+  change: number;
+  reason: StockReason;
+  note: string;
+  dish: string | null;
+  tableLabel: string | null;
+  recordedByName: string | null;
+  createdAt: string;
+}
+
+export interface RecipeLine {
+  ingredientId: string;
+  name: string;
+  unit: StockUnit;
+  quantity: number;
+  unitCost: number;
 }

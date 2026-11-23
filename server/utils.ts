@@ -93,6 +93,7 @@ export function respondApiError(res: Response, error: unknown, message: string) 
     if (dbError.constraint === 'uq_dining_tables_label') return res.status(409).json({ error: 'There is already a table with this name.' });
     if (dbError.constraint === 'uq_menu_categories_name') return res.status(409).json({ error: 'There is already a category with this name.' });
     if (dbError.constraint === 'uq_orders_active_table') return res.status(409).json({ error: 'This table is already seated.' });
+    if (dbError.constraint === 'uq_ingredients_name') return res.status(409).json({ error: 'There is already an ingredient with this name.' });
     return res.status(409).json({ error: 'A resource with these unique values already exists.' });
   }
 
