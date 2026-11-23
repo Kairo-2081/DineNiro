@@ -1,57 +1,67 @@
-import { Router } from 'express';
-import { query, withTransaction } from '../db/index.ts';
-import { hashPassword, comparePassword, isBcryptHash } from '../db/password.ts';
-import { clearAuthCookie, issueAppToken, requireAuth, requireRole, revokeAuthSession, setAuthCookie, TOKEN_TTL_SECONDS, type AppRole, type AuthRequest } from '../middleware/auth.ts';
-import { isText, mapAddress, respondApiError } from '../utils.ts';
+import { Router, type Response } from 'express';
+import { query } from '../db/index.ts';
+import { comparePassword, hashPassword } from '../db/password.ts';
+import { clearAuthCookie, issueAppToken, requireAuth, revokeAuthSession, setAuthCookie, TOKEN_TTL_SECONDS, type AuthRequest } from '../middleware/auth.ts';
+import { isText, PASSWORD_MAX_LENGTH, respondApiError } from '../utils.ts';
+import type { Account, RestaurantMembership, Session } from '../../src/types.ts';
 
 const router = Router();
 
-function profileFor(role: AppRole, row: any) {
-  if (role === 'seller') return {
-    Seller_ID: row.id, Username: row.username, Name: row.name, Email: row.email,
-    Number: row.number || '', Address: mapAddress(row), Logo: row.logo || '',
-    Description: row.description || '', Status: row.status || 'approved',
-    Created_At: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
-  };
-  if (role === 'admin') return {
-    Admin_ID: row.id, Username: row.username, Name: row.name, Email: row.email,
-    Number: row.number || '', Address: mapAddress(row),
-  };
-  return {
-    Customer_ID: row.id, Username: row.username, Name: row.name, Email: row.email,
-    Number: row.number || '', Address: mapAddress(row),
-  };
+// Compared against when no account matches, so a wrong username takes as long as a wrong password.
+const dummyHash = hashPassword('dineniro-timing-equaliser');
+
+function mapAccount(row: any): Account {
+  return { id: row.id, username: row.username, email: row.email, name: row.name, phone: row.phone || '', role: row.role };
 }
 
-async function loginResponse(res: any, role: AppRole, row: any) {
-  const entity = profileFor(role, row);
-  const token = await issueAppToken({ sub: row.id, role, email: row.email, username: row.username, name: row.name });
+export async function loadSession(userId: string): Promise<Session | null> {
+  const [accountRes, membershipsRes] = await Promise.all([
+    query(`SELECT * FROM dineniro_user_get($1)`, [userId]),
+    query(`SELECT * FROM dineniro_memberships_for_user($1)`, [userId]),
+  ]);
+  if (!accountRes.rows[0]) return null;
+  const memberships: RestaurantMembership[] = membershipsRes.rows.map((m: any) => ({
+    restaurantId: m.restaurant_id, restaurantName: m.restaurant_name,
+    restaurantStatus: m.restaurant_status, statusReason: m.status_reason || '', role: m.role,
+  }));
+  return { account: mapAccount(accountRes.rows[0]), memberships };
+}
+
+/** Signs the account in and answers with the same session shape as GET /api/auth/me. */
+export async function signIn(res: Response, account: Pick<Account, 'id' | 'role' | 'email' | 'username' | 'name'>, status = 200) {
+  const token = await issueAppToken({ sub: account.id, role: account.role, email: account.email, username: account.username, name: account.name });
   setAuthCookie(res, token);
-  return res.json({ success: true, expiresIn: TOKEN_TTL_SECONDS, role, entity });
+  const session = await loadSession(account.id);
+  return res.status(status).json({ success: true, expiresIn: TOKEN_TTL_SECONDS, session });
 }
 
-function getEntityByRole(role: AppRole, id: string) {
-  if (role === 'customer') return query(`SELECT * FROM gocart_customer_get($1)`, [id]);
-  if (role === 'seller') return query(`SELECT * FROM gocart_seller_get($1)`, [id]);
-  return query(`SELECT * FROM gocart_admin_get($1)`, [id]);
-}
-
-router.get('/api/auth/me', requireAuth, async (req: AuthRequest, res) => {
+router.post('/api/auth/login', async (req, res) => {
   try {
-    const user = req.user!;
-    const result = await getEntityByRole(user.role, user.sub);
-    if (!result.rows[0]) return res.status(401).json({ authenticated: false, user: null });
-    res.json({ authenticated: true, user: { role: user.role, entity: profileFor(user.role, result.rows[0]) } });
-  } catch (error: any) {
-    console.error('Error fetching current user:', error);
-    res.status(500).json({ error: 'Failed to fetch user profile' });
+    const { identifier, password } = req.body ?? {};
+    if (!isText(identifier, 255) || !isText(password, PASSWORD_MAX_LENGTH)) {
+      return res.status(400).json({ error: 'Enter your email or username and your password.' });
+    }
+    const result = await query(`SELECT * FROM dineniro_auth_user_lookup($1)`, [identifier.trim()]);
+    const user: any = result.rows[0];
+    const matches = await comparePassword(password, user?.password ?? await dummyHash);
+    if (!user || !matches) {
+      return res.status(401).json({ error: 'That email/username and password do not match.' });
+    }
+    return await signIn(res, mapAccount(user));
+  } catch (error) {
+    respondApiError(res, error, 'Error during login:');
   }
 });
 
-// Role changes are never self-service. Kept as a protected legacy endpoint for contract clarity.
-router.post('/api/auth/role', requireAuth, requireRole('admin'), (_req, res) =>
-  res.status(410).json({ error: 'Role changes are not supported.' })
-);
+router.get('/api/auth/me', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const session = await loadSession(req.user!.sub);
+    if (!session) return res.status(401).json({ authenticated: false, session: null });
+    res.json({ authenticated: true, session });
+  } catch (error) {
+    respondApiError(res, error, 'Error fetching current user:');
+  }
+});
 
 router.post('/api/auth/logout', requireAuth, async (req: AuthRequest, res) => {
   try {
@@ -60,34 +70,6 @@ router.post('/api/auth/logout', requireAuth, async (req: AuthRequest, res) => {
     res.sendStatus(204);
   } catch (error) {
     respondApiError(res, error, 'Error logging out:');
-  }
-});
-
-router.post('/api/auth/login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    if (!isText(email, 255) || !isText(password, 72)) {
-      return res.status(400).json({ error: 'Username/Email and Password are required' });
-    }
-    const cleanInput = email.trim();
-    const cleanLower = cleanInput.toLowerCase();
-
-    const userRes = await query(`SELECT * FROM gocart_auth_user_lookup($1, $2)`, [cleanLower, cleanInput]);
-    const userMatch: any = userRes.rows[0];
-    if (!userMatch || !await comparePassword(password, userMatch.password)) {
-      return res.status(401).json({ error: 'Invalid username/email or password.' });
-    }
-    if (userMatch.password && !isBcryptHash(userMatch.password)) {
-      const newHash = await hashPassword(password);
-      await withTransaction((client) => client.query(`SELECT gocart_auth_password_update('user', $1, $2)`, [userMatch.id, newHash]));
-    }
-    const role = userMatch.role as AppRole;
-    if (!['customer', 'seller', 'admin'].includes(role)) return res.status(401).json({ error: 'Invalid account role.' });
-    const entityRes = await getEntityByRole(role, userMatch.id);
-    if (entityRes.rows.length > 0) return await loginResponse(res, role, entityRes.rows[0]);
-    return res.status(401).json({ error: `No registered account found for "${cleanInput}". Please create an account first.` });
-  } catch (error: any) {
-    respondApiError(res, error, 'Error during login:');
   }
 });
 

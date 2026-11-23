@@ -185,10 +185,20 @@ RETURNS TABLE(id VARCHAR, username VARCHAR, email VARCHAR, name VARCHAR, phone V
 LANGUAGE plpgsql
 AS $$
 BEGIN
+    IF EXISTS (SELECT 1 FROM users u WHERE LOWER(u.email) = LOWER(p_email)) THEN
+        RAISE EXCEPTION USING ERRCODE = 'unique_violation', CONSTRAINT = 'uq_users_email_lower', MESSAGE = 'An account with this email already exists.';
+    END IF;
     INSERT INTO users (id, username, email, password, name, phone, role)
     VALUES (p_id, LOWER(p_username), LOWER(p_email), p_password, p_name, p_phone, 'admin');
     RETURN QUERY SELECT * FROM dineniro_user_get(p_id);
 END;
+$$;
+
+CREATE OR REPLACE FUNCTION dineniro_username_taken(p_username VARCHAR)
+RETURNS BOOLEAN
+LANGUAGE SQL STABLE
+AS $$
+    SELECT EXISTS (SELECT 1 FROM users WHERE LOWER(username) = LOWER(p_username));
 $$;
 
 CREATE OR REPLACE FUNCTION dineniro_admin_count()
@@ -246,6 +256,9 @@ RETURNS SETOF restaurants
 LANGUAGE plpgsql
 AS $$
 BEGIN
+    IF EXISTS (SELECT 1 FROM users u WHERE LOWER(u.email) = LOWER(p_email)) THEN
+        RAISE EXCEPTION USING ERRCODE = 'unique_violation', CONSTRAINT = 'uq_users_email_lower', MESSAGE = 'An account with this email already exists.';
+    END IF;
     INSERT INTO users (id, username, email, password, name, phone, role)
     VALUES (p_user_id, LOWER(p_username), LOWER(p_email), p_password, p_owner_name, p_owner_phone, 'staff');
 
