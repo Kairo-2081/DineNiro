@@ -171,3 +171,24 @@ Two live bookings for the same table can never overlap. Ranges are half-open, so
 **On the floor.** `dineniro_floor` includes each table's next live booking in the next 12 hours. A free table whose booking starts within the hour, or whose guests are running late, has state `reserved`.
 
 Requires PostgreSQL 15 or later: the foreign keys from bookings and waitlist entries to orders use `ON DELETE SET NULL (order_id)`.
+
+## Inventory
+
+```mermaid
+erDiagram
+    RESTAURANTS ||--o{ INGREDIENTS : stocks
+    MENU_ITEMS ||--o{ RECIPE_LINES : "made with"
+    INGREDIENTS ||--o{ RECIPE_LINES : "used in"
+    INGREDIENTS ||--o{ STOCK_MOVEMENTS : "changed by"
+    ORDER_ITEMS |o--o{ STOCK_MOVEMENTS : "sold as"
+```
+
+**The ledger is the truth.** Every change to stock is a row in `stock_movements`: `sale`, `void`, `delivery`, `count` or `waste`, with the cost at the time and who recorded it. The trigger `trigger_apply_stock_movement` adds each change to `ingredients.on_hand`, so the on-hand figure always equals the sum of the ledger. On-hand may go negative. That means the kitchen used more than was recorded, and a count will correct it.
+
+**Selling uses the recipe.** `recipe_lines` say how much of each ingredient one portion uses, in that ingredient's unit (kg, g, l, ml or pieces). When an order line changes from `draft` to `sent`, the trigger `trigger_move_stock_for_order_item` writes a `sale` movement per recipe line (portion × quantity). If the line is voided while its ticket is still `new`, the same amounts come back as `void` movements. After the kitchen has started, nothing comes back, because the food was made.
+
+**Counts** record the difference between what was counted and what the system expected. **Deliveries** can also set a new cost per unit. **Waste** needs a reason (enforced by the API).
+
+**Portions left and food cost.** `dineniro_menu` reports, for each dish with a recipe, how many more portions the recorded stock allows (the scarcest ingredient decides) and the ingredient cost of one portion at current prices. Dishes without a recipe report neither. Low stock is a warning on the waiter's screen, not a block.
+
+An ingredient's unit can't change once it has stock movements, because past quantities would change meaning.

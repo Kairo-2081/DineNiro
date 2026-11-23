@@ -2,6 +2,7 @@ import type {
   Bill, BillSummary, DiningTable, FloorTable, KitchenTicket, MenuCategory, MenuItem, NewStaffMember, Order, PaymentMethod,
   PlatformStats, Receipt, Restaurant, RestaurantApplication, RestaurantStatus, RestaurantStatusChange, RestaurantSummary,
   Session, StaffMember, StaffRole, Station, TableShape, TicketStatus, AvailableTable, NewReservation, Reservation, WaitlistEntry,
+  Ingredient, RecipeLine, StockMovement, StockUnit,
 } from '../types';
 
 export class ApiError extends Error {
@@ -115,6 +116,16 @@ export const api = {
         request<WaitlistEntry>('POST', r('/waitlist'), entry),
       waitlistLeft: (id: string) => request<void>('POST', r(`/waitlist/${enc(id)}/left`)),
       seatFromWaitlist: (id: string, tableId: string) => request<{ orderId: string }>('POST', r(`/waitlist/${enc(id)}/seat`), { tableId }),
+
+      ingredients: () => request<Ingredient[]>('GET', r('/ingredients')),
+      saveIngredient: (ingredient: { id?: string; name: string; category?: string; unit: StockUnit; parLevel?: number; unitCost?: number; supplier?: string; active?: boolean }) =>
+        ingredient.id ? request<Ingredient>('PUT', r(`/ingredients/${enc(ingredient.id)}`), ingredient) : request<Ingredient>('POST', r('/ingredients'), ingredient),
+      recordStock: (ingredientId: string, change: { kind: 'delivery' | 'count' | 'waste'; quantity: number; unitCost?: number; note?: string }) =>
+        request<Ingredient>('POST', r(`/ingredients/${enc(ingredientId)}/stock`), change),
+      stockHistory: (ingredientId: string) => request<StockMovement[]>('GET', r(`/ingredients/${enc(ingredientId)}/history`)),
+      recipe: (menuItemId: string) => request<RecipeLine[]>('GET', r(`/recipes/${enc(menuItemId)}`)),
+      saveRecipe: (menuItemId: string, lines: { ingredientId: string; quantity: number }[]) =>
+        request<RecipeLine[]>('PUT', r(`/recipes/${enc(menuItemId)}`), { lines }),
     };
   },
 };

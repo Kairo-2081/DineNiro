@@ -30,6 +30,8 @@ export async function loadMenu(restaurantId: string): Promise<MenuCategory[]> {
         id: row.item_id, categoryId: row.category_id, name: row.name, description: row.description, price: money(row.price),
         station: row.station, available: row.available, sortOrder: row.item_sort,
         options: (row.options as any[]).map((o) => ({ id: o.id, name: o.name, priceDelta: money(o.priceDelta) })),
+        portionsLeft: row.portions_left === null ? null : Number(row.portions_left),
+        foodCost: row.food_cost === null ? null : money(row.food_cost),
       });
     }
   }

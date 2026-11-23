@@ -674,27 +674,7 @@ BEGIN
 END;
 $$;
 
--- Menu.
-CREATE OR REPLACE FUNCTION dineniro_menu(p_restaurant_id VARCHAR)
-RETURNS TABLE(
-    category_id VARCHAR, category_name VARCHAR, category_sort INTEGER,
-    item_id VARCHAR, name VARCHAR, description VARCHAR, price NUMERIC, station VARCHAR, available BOOLEAN, item_sort INTEGER,
-    options JSONB
-)
-LANGUAGE SQL STABLE
-AS $$
-    SELECT c.id, c.name, c.sort_order,
-           i.id, i.name, i.description, i.price, i.station, i.available, i.sort_order,
-           COALESCE((
-               SELECT jsonb_agg(jsonb_build_object('id', o.id, 'name', o.name, 'priceDelta', o.price_delta) ORDER BY o.sort_order, o.name)
-               FROM menu_item_options o WHERE o.menu_item_id = i.id
-           ), '[]'::JSONB)
-    FROM menu_categories c
-    LEFT JOIN menu_items i ON i.restaurant_id = c.restaurant_id AND i.category_id = c.id
-    WHERE c.restaurant_id = p_restaurant_id
-    ORDER BY c.sort_order, c.name, i.sort_order, i.name;
-$$;
-
+-- Menu (dineniro_menu is defined with inventory below, because it reports portions left).
 CREATE OR REPLACE FUNCTION dineniro_category_save(p_restaurant_id VARCHAR, p_id VARCHAR, p_name VARCHAR, p_sort_order INTEGER)
 RETURNS SETOF menu_categories
 LANGUAGE plpgsql
@@ -894,7 +874,12 @@ BEGIN
     PERFORM dineniro_order_lock_for_change(p_restaurant_id, p_order_id);
     UPDATE order_items SET status = 'void', void_reason = TRIM(p_reason), voided_by = p_user_id
     WHERE restaurant_id = p_restaurant_id AND order_id = p_order_id AND id = p_item_id AND status = 'sent';
-    RETURN FOUND;
+    IF NOT FOUND THEN RETURN FALSE; END IF;
+    -- A ticket with nothing left to cook closes itself, so the kitchen and the floor stop showing it.
+    UPDATE kitchen_tickets k SET status = 'served', served_at = COALESCE(k.served_at, CURRENT_TIMESTAMP)
+    WHERE k.id = (SELECT ticket_id FROM order_items WHERE id = p_item_id) AND k.status <> 'served'
+      AND NOT EXISTS (SELECT 1 FROM order_items i WHERE i.ticket_id = k.id AND i.status <> 'void');
+    RETURN TRUE;
 END;
 $$;
 
@@ -1373,4 +1358,254 @@ AS $$
     ) nb ON TRUE
     WHERE t.restaurant_id = p_restaurant_id AND t.active
     ORDER BY t.section, t.sort_order, t.label;
+$$;
+
+-- 7. INVENTORY: INGREDIENTS, RECIPES AND THE STOCK LEDGER
+
+-- Something the kitchen buys and uses. on_hand is kept up to date by the stock ledger below; it may go
+-- negative when the kitchen uses more than was recorded, which shows the count needs checking.
+CREATE TABLE IF NOT EXISTS ingredients (
+    id VARCHAR(64) PRIMARY KEY,
+    restaurant_id VARCHAR(64) NOT NULL REFERENCES restaurants(id) ON UPDATE CASCADE ON DELETE CASCADE,
+    name VARCHAR(120) NOT NULL,
+    category VARCHAR(60) NOT NULL DEFAULT 'Other',
+    unit VARCHAR(4) NOT NULL,
+    on_hand NUMERIC(12,3) NOT NULL DEFAULT 0,
+    par_level NUMERIC(12,3) NOT NULL DEFAULT 0,
+    unit_cost NUMERIC(10,2) NOT NULL DEFAULT 0,
+    supplier VARCHAR(120) NOT NULL DEFAULT '',
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_ingredients_restaurant_id UNIQUE (restaurant_id, id),
+    CONSTRAINT chk_ingredients_unit CHECK (unit IN ('kg', 'g', 'l', 'ml', 'pc')),
+    CONSTRAINT chk_ingredients_amounts CHECK (par_level >= 0 AND unit_cost >= 0)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_ingredients_name ON ingredients (restaurant_id, LOWER(name));
+
+-- How much of each ingredient one portion of a dish uses, in the ingredient's own unit.
+CREATE TABLE IF NOT EXISTS recipe_lines (
+    restaurant_id VARCHAR(64) NOT NULL,
+    menu_item_id VARCHAR(64) NOT NULL,
+    ingredient_id VARCHAR(64) NOT NULL,
+    quantity NUMERIC(12,3) NOT NULL,
+    PRIMARY KEY (menu_item_id, ingredient_id),
+    CONSTRAINT fk_recipe_lines_item FOREIGN KEY (restaurant_id, menu_item_id)
+        REFERENCES menu_items (restaurant_id, id) ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_recipe_lines_ingredient FOREIGN KEY (restaurant_id, ingredient_id)
+        REFERENCES ingredients (restaurant_id, id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT chk_recipe_lines_quantity CHECK (quantity > 0)
+);
+CREATE INDEX IF NOT EXISTS idx_recipe_lines_ingredient ON recipe_lines (ingredient_id);
+
+-- Every change to stock, ever: sales when a ticket is sent, deliveries, counts, waste and returns from voids.
+CREATE TABLE IF NOT EXISTS stock_movements (
+    id BIGSERIAL PRIMARY KEY,
+    restaurant_id VARCHAR(64) NOT NULL,
+    ingredient_id VARCHAR(64) NOT NULL,
+    change NUMERIC(12,3) NOT NULL,
+    reason VARCHAR(10) NOT NULL,
+    unit_cost NUMERIC(10,2) NOT NULL DEFAULT 0,
+    order_item_id VARCHAR(64) REFERENCES order_items(id) ON UPDATE CASCADE ON DELETE SET NULL,
+    note VARCHAR(200) NOT NULL DEFAULT '',
+    recorded_by VARCHAR(64) REFERENCES users(id) ON UPDATE CASCADE ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_stock_movements_ingredient FOREIGN KEY (restaurant_id, ingredient_id)
+        REFERENCES ingredients (restaurant_id, id) ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT chk_stock_movements_reason CHECK (reason IN ('sale', 'void', 'delivery', 'count', 'waste'))
+);
+CREATE INDEX IF NOT EXISTS idx_stock_movements_ingredient ON stock_movements (ingredient_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_stock_movements_restaurant ON stock_movements (restaurant_id, created_at DESC);
+
+-- The ledger is the truth; on_hand follows it.
+CREATE OR REPLACE FUNCTION apply_stock_movement()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    UPDATE ingredients SET on_hand = on_hand + NEW.change WHERE id = NEW.ingredient_id;
+    RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS trigger_apply_stock_movement ON stock_movements;
+CREATE TRIGGER trigger_apply_stock_movement
+AFTER INSERT ON stock_movements
+FOR EACH ROW EXECUTE FUNCTION apply_stock_movement();
+
+-- Sending a dish to the kitchen uses its recipe. Voiding it before the kitchen starts puts the stock back;
+-- once cooking has started the food is gone, so nothing is returned.
+CREATE OR REPLACE FUNCTION move_stock_for_order_item()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF OLD.status = 'draft' AND NEW.status = 'sent' THEN
+        INSERT INTO stock_movements (restaurant_id, ingredient_id, change, reason, unit_cost, order_item_id, recorded_by)
+        SELECT NEW.restaurant_id, r.ingredient_id, -(r.quantity * NEW.quantity), 'sale', i.unit_cost, NEW.id, NEW.added_by
+        FROM recipe_lines r JOIN ingredients i ON i.id = r.ingredient_id
+        WHERE r.menu_item_id = NEW.menu_item_id;
+    ELSIF OLD.status = 'sent' AND NEW.status = 'void'
+        AND EXISTS (SELECT 1 FROM kitchen_tickets k WHERE k.id = NEW.ticket_id AND k.status = 'new') THEN
+        INSERT INTO stock_movements (restaurant_id, ingredient_id, change, reason, unit_cost, order_item_id, recorded_by, note)
+        SELECT m.restaurant_id, m.ingredient_id, -m.change, 'void', m.unit_cost, NEW.id, NEW.voided_by, 'Voided before cooking'
+        FROM stock_movements m WHERE m.order_item_id = NEW.id AND m.reason = 'sale';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS trigger_move_stock_for_order_item ON order_items;
+CREATE TRIGGER trigger_move_stock_for_order_item
+AFTER UPDATE OF status ON order_items
+FOR EACH ROW EXECUTE FUNCTION move_stock_for_order_item();
+
+-- The menu, with how many more portions of each dish the recorded stock allows (NULL when it has no recipe).
+DROP FUNCTION IF EXISTS dineniro_menu(VARCHAR);
+CREATE FUNCTION dineniro_menu(p_restaurant_id VARCHAR)
+RETURNS TABLE(
+    category_id VARCHAR, category_name VARCHAR, category_sort INTEGER,
+    item_id VARCHAR, name VARCHAR, description VARCHAR, price NUMERIC, station VARCHAR, available BOOLEAN, item_sort INTEGER,
+    options JSONB, portions_left INTEGER, food_cost NUMERIC
+)
+LANGUAGE SQL STABLE
+AS $$
+    SELECT c.id, c.name, c.sort_order,
+           i.id, i.name, i.description, i.price, i.station, i.available, i.sort_order,
+           COALESCE((
+               SELECT jsonb_agg(jsonb_build_object('id', o.id, 'name', o.name, 'priceDelta', o.price_delta) ORDER BY o.sort_order, o.name)
+               FROM menu_item_options o WHERE o.menu_item_id = i.id
+           ), '[]'::JSONB),
+           -- NULL when there is no recipe (GREATEST alone would turn that into 0).
+           (SELECT CASE WHEN COUNT(*) = 0 THEN NULL ELSE GREATEST(MIN(FLOOR(g.on_hand / r.quantity)), 0)::INTEGER END
+              FROM recipe_lines r JOIN ingredients g ON g.id = r.ingredient_id WHERE r.menu_item_id = i.id),
+           (SELECT SUM(r.quantity * g.unit_cost) FROM recipe_lines r JOIN ingredients g ON g.id = r.ingredient_id WHERE r.menu_item_id = i.id)
+    FROM menu_categories c
+    LEFT JOIN menu_items i ON i.restaurant_id = c.restaurant_id AND i.category_id = c.id
+    WHERE c.restaurant_id = p_restaurant_id
+    ORDER BY c.sort_order, c.name, i.sort_order, i.name;
+$$;
+
+-- Ingredients with how fast they are being used (average over the last 7 days of sales and waste).
+CREATE OR REPLACE FUNCTION dineniro_ingredients(p_restaurant_id VARCHAR)
+RETURNS TABLE(
+    id VARCHAR, name VARCHAR, category VARCHAR, unit VARCHAR, on_hand NUMERIC, par_level NUMERIC, unit_cost NUMERIC,
+    supplier VARCHAR, active BOOLEAN, used_today NUMERIC, used_per_day NUMERIC, dishes BIGINT
+)
+LANGUAGE SQL STABLE
+AS $$
+    SELECT g.id, g.name, g.category, g.unit, g.on_hand, g.par_level, g.unit_cost, g.supplier, g.active,
+           COALESCE((SELECT -SUM(m.change) FROM stock_movements m
+                     WHERE m.ingredient_id = g.id AND m.reason IN ('sale', 'void', 'waste') AND m.created_at >= date_trunc('day', CURRENT_TIMESTAMP)), 0),
+           COALESCE((SELECT -SUM(m.change) / 7 FROM stock_movements m
+                     WHERE m.ingredient_id = g.id AND m.reason IN ('sale', 'void', 'waste') AND m.created_at >= CURRENT_TIMESTAMP - INTERVAL '7 days'), 0),
+           (SELECT COUNT(*) FROM recipe_lines r WHERE r.ingredient_id = g.id)
+    FROM ingredients g
+    WHERE g.restaurant_id = p_restaurant_id
+    ORDER BY g.active DESC, g.category, g.name;
+$$;
+
+CREATE OR REPLACE FUNCTION dineniro_ingredient_save(
+    p_restaurant_id VARCHAR, p_id VARCHAR, p_name VARCHAR, p_category VARCHAR, p_unit VARCHAR,
+    p_par_level NUMERIC, p_unit_cost NUMERIC, p_supplier VARCHAR, p_active BOOLEAN
+)
+RETURNS VARCHAR
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM ingredients WHERE id = p_id) THEN
+        IF EXISTS (SELECT 1 FROM ingredients WHERE id = p_id AND restaurant_id = p_restaurant_id AND unit <> p_unit)
+           AND EXISTS (SELECT 1 FROM stock_movements WHERE ingredient_id = p_id) THEN
+            RAISE EXCEPTION 'Service Error: the unit cannot change once stock has been recorded. Add a new ingredient instead.';
+        END IF;
+        UPDATE ingredients SET name = p_name, category = COALESCE(p_category, 'Other'), unit = p_unit, par_level = COALESCE(p_par_level, 0),
+            unit_cost = COALESCE(p_unit_cost, 0), supplier = COALESCE(p_supplier, ''), active = COALESCE(p_active, TRUE)
+        WHERE id = p_id AND restaurant_id = p_restaurant_id;
+        IF NOT FOUND THEN RETURN NULL; END IF;
+    ELSE
+        INSERT INTO ingredients (id, restaurant_id, name, category, unit, par_level, unit_cost, supplier, active)
+        VALUES (p_id, p_restaurant_id, p_name, COALESCE(p_category, 'Other'), p_unit, COALESCE(p_par_level, 0), COALESCE(p_unit_cost, 0),
+                COALESCE(p_supplier, ''), COALESCE(p_active, TRUE));
+    END IF;
+    RETURN p_id;
+END;
+$$;
+
+-- Records a stock change of one kind. Deliveries also update the ingredient's cost when one is given.
+-- Counts record the difference between what was counted and what the system expected.
+CREATE OR REPLACE FUNCTION dineniro_stock_record(
+    p_restaurant_id VARCHAR, p_ingredient_id VARCHAR, p_kind VARCHAR, p_quantity NUMERIC, p_unit_cost NUMERIC, p_note VARCHAR, p_user_id VARCHAR
+)
+RETURNS NUMERIC
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_on_hand NUMERIC;
+    v_cost NUMERIC;
+    v_change NUMERIC;
+BEGIN
+    SELECT on_hand, unit_cost INTO v_on_hand, v_cost FROM ingredients
+    WHERE restaurant_id = p_restaurant_id AND id = p_ingredient_id FOR UPDATE;
+    IF NOT FOUND THEN RETURN NULL; END IF;
+
+    IF p_kind = 'delivery' THEN
+        IF p_quantity <= 0 THEN RAISE EXCEPTION 'Service Error: a delivery must add something.'; END IF;
+        v_change := p_quantity;
+        IF p_unit_cost IS NOT NULL THEN
+            v_cost := p_unit_cost;
+            UPDATE ingredients SET unit_cost = p_unit_cost WHERE id = p_ingredient_id;
+        END IF;
+    ELSIF p_kind = 'waste' THEN
+        IF p_quantity <= 0 THEN RAISE EXCEPTION 'Service Error: record how much was thrown away.'; END IF;
+        v_change := -p_quantity;
+    ELSIF p_kind = 'count' THEN
+        IF p_quantity < 0 THEN RAISE EXCEPTION 'Service Error: a count cannot be below zero.'; END IF;
+        v_change := p_quantity - v_on_hand;
+    ELSE
+        RAISE EXCEPTION 'Service Error: unknown kind of stock change.';
+    END IF;
+
+    IF v_change <> 0 THEN
+        INSERT INTO stock_movements (restaurant_id, ingredient_id, change, reason, unit_cost, note, recorded_by)
+        VALUES (p_restaurant_id, p_ingredient_id, v_change, p_kind, v_cost, COALESCE(p_note, ''), p_user_id);
+    END IF;
+    RETURN v_on_hand + v_change;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION dineniro_stock_history(p_restaurant_id VARCHAR, p_ingredient_id VARCHAR, p_limit INTEGER DEFAULT 30)
+RETURNS TABLE(id BIGINT, change NUMERIC, reason VARCHAR, note VARCHAR, dish VARCHAR, table_label VARCHAR, recorded_by_name VARCHAR, created_at TIMESTAMPTZ)
+LANGUAGE SQL STABLE
+AS $$
+    SELECT m.id, m.change, m.reason, m.note, oi.name, t.label, u.name, m.created_at
+    FROM stock_movements m
+    LEFT JOIN order_items oi ON oi.id = m.order_item_id
+    LEFT JOIN orders o ON o.id = oi.order_id
+    LEFT JOIN dining_tables t ON t.id = o.table_id
+    LEFT JOIN users u ON u.id = m.recorded_by
+    WHERE m.restaurant_id = p_restaurant_id AND m.ingredient_id = p_ingredient_id
+    ORDER BY m.created_at DESC, m.id DESC
+    LIMIT GREATEST(LEAST(p_limit, 200), 1);
+$$;
+
+CREATE OR REPLACE FUNCTION dineniro_recipe(p_restaurant_id VARCHAR, p_menu_item_id VARCHAR)
+RETURNS TABLE(ingredient_id VARCHAR, name VARCHAR, unit VARCHAR, quantity NUMERIC, unit_cost NUMERIC)
+LANGUAGE SQL STABLE
+AS $$
+    SELECT g.id, g.name, g.unit, r.quantity, g.unit_cost
+    FROM recipe_lines r JOIN ingredients g ON g.id = r.ingredient_id
+    WHERE r.restaurant_id = p_restaurant_id AND r.menu_item_id = p_menu_item_id
+    ORDER BY g.name;
+$$;
+
+-- Replaces a dish's recipe with p_lines: [{ "ingredientId", "quantity" }].
+CREATE OR REPLACE FUNCTION dineniro_recipe_save(p_restaurant_id VARCHAR, p_menu_item_id VARCHAR, p_lines JSONB)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM menu_items WHERE restaurant_id = p_restaurant_id AND id = p_menu_item_id) THEN RETURN FALSE; END IF;
+    DELETE FROM recipe_lines WHERE menu_item_id = p_menu_item_id;
+    INSERT INTO recipe_lines (restaurant_id, menu_item_id, ingredient_id, quantity)
+    SELECT p_restaurant_id, p_menu_item_id, l.value->>'ingredientId', (l.value->>'quantity')::NUMERIC
+    FROM jsonb_array_elements(p_lines) l;
+    RETURN TRUE;
+END;
 $$;
