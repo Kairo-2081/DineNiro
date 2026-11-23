@@ -22,6 +22,16 @@ export function createApp() {
   app.use(authenticateApiRequest);
   app.use(express.json({ limit: '100kb' }));
 
+  /** Public health check for the hosting platform: up only when the database answers. Reveals nothing else. */
+  app.get('/api/health', async (_req, res) => {
+    try {
+      await query('SELECT 1');
+      res.json({ ok: true });
+    } catch {
+      res.status(503).json({ ok: false });
+    }
+  });
+
   app.get('/api/db/status', async (_req, res) => {
     const providerInfo = getDatabaseProviderInfo();
     try {
