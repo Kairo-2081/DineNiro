@@ -27,6 +27,7 @@ A multi-restaurant platform: each restaurant gets its own workspace and team, an
 - **Reservations.** A day timeline of tables from 11:00 to midnight. Tap an empty spot to book it, or let DineNiro suggest tables that fit the party and are free for the whole time. The database itself refuses overlapping bookings, even two made at the same moment. Tables booked within the hour show as Reserved on the floor.
 - **Waitlist.** Walk-ins with a quoted wait. DineNiro flags anyone waiting longer than quoted, and won't seat a walk-in at a table booked within the hour.
 - **Stock.** Ingredients with par levels and suppliers, and a recipe for each dish. Sending a dish to the kitchen takes its recipe off stock. Voiding it before cooking starts puts the stock back. Chefs record deliveries, counts and waste, and every change is in a ledger showing the dish and table behind each sale. Owners see the food cost of every plate. Waiters see "3 left" when stock runs low. Low stock warns, it doesn't block, because counts drift in a real kitchen.
+- **Reports.** Today, yesterday, 7 or 30 days, each compared with the period before. Net sales, covers, average check, sales by hour or day, payment mix, top dishes, each server's totals and table times, and a money breakdown for the accounts (discounts, service charge, VAT collected, voids, food cost %). Exports to CSV. Every figure comes from paid bills, so it matches the till.
 - **Setup.** Owners and managers add tables, menu categories and dishes, mark dishes sold out, and set billing rates.
 
 | Floor | Order |
@@ -34,6 +35,10 @@ A multi-restaurant platform: each restaurant gets its own workspace and team, an
 | <img src="./.github/assets/readme/floor.jpg" alt="Floor plan with tables coloured by status" /> | <img src="./.github/assets/readme/order.jpg" alt="Waiter ordering for a table" /> |
 | **Kitchen display** | **Bill and receipt** |
 | <img src="./.github/assets/readme/kitchen.jpg" alt="Kitchen tickets in New, Cooking and Ready columns" /> | <img src="./.github/assets/readme/bill-receipt.jpg" alt="Paid bill with the printed receipt" /> |
+| **Reservations** | **Stock** |
+| <img src="./.github/assets/readme/bookings.jpg" alt="Day timeline of table bookings" /> | <img src="./.github/assets/readme/stock.jpg" alt="Ingredients against par with delivery, count and waste" /> |
+
+<img src="./.github/assets/readme/reports.jpg" alt="Reports: sales by hour, payment mix, top dishes, staff and the money breakdown" width="900" />
 
 **The platform**
 
@@ -56,6 +61,7 @@ A multi-restaurant platform: each restaurant gets its own workspace and team, an
 | Take payment | ✓ | ✓ | | | ✓ | |
 | Deliveries, counts, waste | ✓ | ✓ | | | | ✓ |
 | Ingredients and recipes | ✓ | ✓ | | | | view |
+| Reports | ✓ | ✓ | | | | |
 | Tables, menu, billing rates, team | ✓ | ✓ | | | | |
 
 Managers manage cashiers, hosts, waiters and chefs. Only owners manage owners and managers.
@@ -64,7 +70,6 @@ Managers manage cashiers, hosts, waiters and chefs. Only owners manage owners an
 
 | Stage | What it adds |
 |---|---|
-| Reports | Daily sales, top dishes, staff totals, payment mix |
 | Printing | Automatic receipt and kitchen-ticket printing through a small helper on the counter PC (browsers can't print silently) |
 
 ## Get started
@@ -148,6 +153,7 @@ Service routes, all under `/api/restaurants/:restaurantId` for approved restaura
 | `POST` | `/ingredients/:id/stock` | record a delivery, count or waste |
 | `GET` | `/ingredients/:id/history` | the ledger for one ingredient |
 | `GET` `PUT` | `/recipes/:menuItemId` | a dish's recipe |
+| `GET` | `/reports?from=&to=&tz=` | sales report for a range, with the previous period |
 
 ## Architecture
 

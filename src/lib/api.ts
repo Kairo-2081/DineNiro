@@ -2,7 +2,7 @@ import type {
   Bill, BillSummary, DiningTable, FloorTable, KitchenTicket, MenuCategory, MenuItem, NewStaffMember, Order, PaymentMethod,
   PlatformStats, Receipt, Restaurant, RestaurantApplication, RestaurantStatus, RestaurantStatusChange, RestaurantSummary,
   Session, StaffMember, StaffRole, Station, TableShape, TicketStatus, AvailableTable, NewReservation, Reservation, WaitlistEntry,
-  Ingredient, RecipeLine, StockMovement, StockUnit,
+  Ingredient, RecipeLine, StockMovement, StockUnit, SalesReport,
 } from '../types';
 
 export class ApiError extends Error {
@@ -126,6 +126,9 @@ export const api = {
       recipe: (menuItemId: string) => request<RecipeLine[]>('GET', r(`/recipes/${enc(menuItemId)}`)),
       saveRecipe: (menuItemId: string, lines: { ingredientId: string; quantity: number }[]) =>
         request<RecipeLine[]>('PUT', r(`/recipes/${enc(menuItemId)}`), { lines }),
+
+      report: (from: string, to: string, tz: string) =>
+        request<SalesReport>('GET', r(`/reports?from=${enc(from)}&to=${enc(to)}&tz=${enc(tz)}`)),
     };
   },
 };

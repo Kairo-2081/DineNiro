@@ -192,3 +192,17 @@ erDiagram
 **Portions left and food cost.** `dineniro_menu` reports, for each dish with a recipe, how many more portions the recorded stock allows (the scarcest ingredient decides) and the ingredient cost of one portion at current prices. Dishes without a recipe report neither. Low stock is a warning on the waiter's screen, not a block.
 
 An ingredient's unit can't change once it has stock movements, because past quantities would change meaning.
+
+## Reports
+
+Every report counts **paid bills**, dated by `bills.paid_at`, so the figures match what was actually taken. Open bills never count.
+
+| Function | What it returns |
+|---|---|
+| `dineniro_report_summary` | bills, covers, food sales, discounts, service charge, VAT, total, voided dishes, average table time, and food cost (from `stock_movements` for those orders, sales less early-void returns) next to the sales of the dishes that have a recipe |
+| `dineniro_report_series` | totals per local hour or day. The caller passes an IANA time zone, checked against `pg_timezone_names` |
+| `dineniro_report_dishes` | top dishes by sales (sent lines only, so voids are excluded) |
+| `dineniro_report_staff` | per server (whoever seated the table): tables, covers, sales, average table time |
+| `dineniro_report_payments` | money by method. Cash counts the amount kept, not what the guest handed over |
+
+The API asks for the requested range and the same length of time just before it, so every headline figure has a comparison.
