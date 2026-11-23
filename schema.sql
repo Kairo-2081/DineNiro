@@ -1609,3 +1609,90 @@ BEGIN
     RETURN TRUE;
 END;
 $$;
+
+-- 8. REPORTS. Sales are counted from paid bills, dated by when they were paid, so reports match the till.
+
+-- Headline figures for paid bills in [p_from, p_to).
+CREATE OR REPLACE FUNCTION dineniro_report_summary(p_restaurant_id VARCHAR, p_from TIMESTAMPTZ, p_to TIMESTAMPTZ)
+RETURNS TABLE(
+    bills BIGINT, covers BIGINT, food_sales NUMERIC, discounts NUMERIC, discounted_bills BIGINT, service_charge NUMERIC,
+    vat NUMERIC, total NUMERIC, voided_lines BIGINT, voided_value NUMERIC, food_cost NUMERIC, costed_sales NUMERIC,
+    avg_turn_minutes NUMERIC
+)
+LANGUAGE SQL STABLE
+AS $$
+    WITH paid AS (
+        SELECT b.*, o.guests, o.opened_at, o.closed_at
+        FROM bills b JOIN orders o ON o.id = b.order_id
+        WHERE b.restaurant_id = p_restaurant_id AND b.status = 'paid' AND b.paid_at >= p_from AND b.paid_at < p_to
+    )
+    SELECT COUNT(*), COALESCE(SUM(guests), 0), COALESCE(SUM(subtotal), 0), COALESCE(SUM(discount), 0),
+           COUNT(*) FILTER (WHERE discount > 0), COALESCE(SUM(service_charge), 0), COALESCE(SUM(vat), 0), COALESCE(SUM(total), 0),
+           (SELECT COUNT(*) FROM order_items i WHERE i.order_id IN (SELECT order_id FROM paid) AND i.status = 'void'),
+           (SELECT COALESCE(SUM(i.unit_price * i.quantity), 0) FROM order_items i WHERE i.order_id IN (SELECT order_id FROM paid) AND i.status = 'void'),
+           -- Ingredient cost of what was sold, from the stock ledger (sales less returns from early voids).
+           (SELECT COALESCE(-SUM(m.change * m.unit_cost), 0) FROM stock_movements m JOIN order_items i ON i.id = m.order_item_id
+             WHERE i.order_id IN (SELECT order_id FROM paid) AND m.reason IN ('sale', 'void')),
+           -- Food sales of the dishes that have a recipe, so food cost % compares like with like.
+           (SELECT COALESCE(SUM(i.unit_price * i.quantity), 0) FROM order_items i
+             WHERE i.order_id IN (SELECT order_id FROM paid) AND i.status = 'sent'
+               AND EXISTS (SELECT 1 FROM stock_movements m WHERE m.order_item_id = i.id)),
+           ROUND(AVG(EXTRACT(EPOCH FROM (closed_at - opened_at)) / 60), 0)
+    FROM paid;
+$$;
+
+-- Sales per hour or per day, in the restaurant's local time zone.
+CREATE OR REPLACE FUNCTION dineniro_report_series(p_restaurant_id VARCHAR, p_from TIMESTAMPTZ, p_to TIMESTAMPTZ, p_bucket VARCHAR, p_time_zone VARCHAR)
+RETURNS TABLE(bucket TIMESTAMP, bills BIGINT, covers BIGINT, total NUMERIC)
+LANGUAGE SQL STABLE
+AS $$
+    SELECT date_trunc(p_bucket, b.paid_at AT TIME ZONE p_time_zone), COUNT(*), SUM(o.guests), SUM(b.total)
+    FROM bills b JOIN orders o ON o.id = b.order_id
+    WHERE b.restaurant_id = p_restaurant_id AND b.status = 'paid' AND b.paid_at >= p_from AND b.paid_at < p_to
+    GROUP BY 1 ORDER BY 1;
+$$;
+
+CREATE OR REPLACE FUNCTION dineniro_report_dishes(p_restaurant_id VARCHAR, p_from TIMESTAMPTZ, p_to TIMESTAMPTZ, p_limit INTEGER DEFAULT 10)
+RETURNS TABLE(menu_item_id VARCHAR, name VARCHAR, quantity BIGINT, sales NUMERIC)
+LANGUAGE SQL STABLE
+AS $$
+    SELECT i.menu_item_id, MAX(i.name), SUM(i.quantity), SUM(i.unit_price * i.quantity)
+    FROM order_items i JOIN bills b ON b.order_id = i.order_id
+    WHERE b.restaurant_id = p_restaurant_id AND b.status = 'paid' AND b.paid_at >= p_from AND b.paid_at < p_to AND i.status = 'sent'
+    GROUP BY i.menu_item_id
+    ORDER BY 4 DESC, 3 DESC
+    LIMIT GREATEST(LEAST(p_limit, 50), 1);
+$$;
+
+-- Per server: the person who seated the table.
+CREATE OR REPLACE FUNCTION dineniro_report_staff(p_restaurant_id VARCHAR, p_from TIMESTAMPTZ, p_to TIMESTAMPTZ)
+RETURNS TABLE(user_id VARCHAR, name VARCHAR, tables BIGINT, covers BIGINT, total NUMERIC, avg_turn_minutes NUMERIC)
+LANGUAGE SQL STABLE
+AS $$
+    SELECT o.opened_by, COALESCE(MAX(u.name), 'Removed account'), COUNT(*), SUM(o.guests), SUM(b.total),
+           ROUND(AVG(EXTRACT(EPOCH FROM (o.closed_at - o.opened_at)) / 60), 0)
+    FROM bills b JOIN orders o ON o.id = b.order_id LEFT JOIN users u ON u.id = o.opened_by
+    WHERE b.restaurant_id = p_restaurant_id AND b.status = 'paid' AND b.paid_at >= p_from AND b.paid_at < p_to
+    GROUP BY o.opened_by
+    ORDER BY 5 DESC;
+$$;
+
+-- Money taken by method. Cash is what was kept, not what was handed over.
+CREATE OR REPLACE FUNCTION dineniro_report_payments(p_restaurant_id VARCHAR, p_from TIMESTAMPTZ, p_to TIMESTAMPTZ)
+RETURNS TABLE(method VARCHAR, payments BIGINT, amount NUMERIC)
+LANGUAGE SQL STABLE
+AS $$
+    SELECT p.method, COUNT(*), SUM(p.amount)
+    FROM payments p JOIN bills b ON b.id = p.bill_id
+    WHERE p.restaurant_id = p_restaurant_id AND b.status = 'paid' AND b.paid_at >= p_from AND b.paid_at < p_to
+    GROUP BY p.method
+    ORDER BY 3 DESC;
+$$;
+
+-- Whether a time zone name is one PostgreSQL knows, so reports can group by local hours and days.
+CREATE OR REPLACE FUNCTION dineniro_time_zone_valid(p_name VARCHAR)
+RETURNS BOOLEAN
+LANGUAGE SQL STABLE
+AS $$
+    SELECT EXISTS (SELECT 1 FROM pg_timezone_names WHERE name = p_name);
+$$;
