@@ -26,6 +26,7 @@ A multi-restaurant platform: each restaurant gets its own workspace and team, an
 - **Bills and payment.** Discount (managers only), then service charge, then VAT, at the restaurant's own rates. Split by number of guests and pay by cash (with change), card, bKash or Nagad. The receipt prints on 80 mm thermal paper with the restaurant's BIN. Paying in full frees the table.
 - **Reservations.** A day timeline of tables from 11:00 to midnight. Tap an empty spot to book it, or let DineNiro suggest tables that fit the party and are free for the whole time. The database itself refuses overlapping bookings, even two made at the same moment. Tables booked within the hour show as Reserved on the floor.
 - **Waitlist.** Walk-ins with a quoted wait. DineNiro flags anyone waiting longer than quoted, and won't seat a walk-in at a table booked within the hour.
+- **Stock.** Ingredients with par levels and suppliers, and a recipe for each dish. Sending a dish to the kitchen takes its recipe off stock. Voiding it before cooking starts puts the stock back. Chefs record deliveries, counts and waste, and every change is in a ledger showing the dish and table behind each sale. Owners see the food cost of every plate. Waiters see "3 left" when stock runs low. Low stock warns, it doesn't block, because counts drift in a real kitchen.
 - **Setup.** Owners and managers add tables, menu categories and dishes, mark dishes sold out, and set billing rates.
 
 | Floor | Order |
@@ -53,6 +54,8 @@ A multi-restaurant platform: each restaurant gets its own workspace and team, an
 | Mark ready food as served | ✓ | ✓ | ✓ | | | ✓ |
 | Print the bill | ✓ | ✓ | ✓ | | ✓ | |
 | Take payment | ✓ | ✓ | | | ✓ | |
+| Deliveries, counts, waste | ✓ | ✓ | | | | ✓ |
+| Ingredients and recipes | ✓ | ✓ | | | | view |
 | Tables, menu, billing rates, team | ✓ | ✓ | | | | |
 
 Managers manage cashiers, hosts, waiters and chefs. Only owners manage owners and managers.
@@ -61,7 +64,6 @@ Managers manage cashiers, hosts, waiters and chefs. Only owners manage owners an
 
 | Stage | What it adds |
 |---|---|
-| Inventory | Ingredients, recipes that deduct stock as tickets are fired, low-stock alerts |
 | Reports | Daily sales, top dishes, staff totals, payment mix |
 | Printing | Automatic receipt and kitchen-ticket printing through a small helper on the counter PC (browsers can't print silently) |
 
@@ -142,6 +144,10 @@ Service routes, all under `/api/restaurants/:restaurantId` for approved restaura
 | `GET` | `/availability?startsAt=&minutes=&party=` | tables free for that time that fit the party |
 | `GET` `POST` | `/waitlist` | waiting walk-ins; add one |
 | `POST` | `/waitlist/:id/seat`, `/waitlist/:id/left` | seat at a table; they left |
+| `GET` `POST` / `PUT` | `/ingredients`, `/ingredients/:id` | stock list with usage; add or change an ingredient |
+| `POST` | `/ingredients/:id/stock` | record a delivery, count or waste |
+| `GET` | `/ingredients/:id/history` | the ledger for one ingredient |
+| `GET` `PUT` | `/recipes/:menuItemId` | a dish's recipe |
 
 ## Architecture
 
