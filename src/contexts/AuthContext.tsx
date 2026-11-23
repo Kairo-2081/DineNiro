@@ -1,82 +1,56 @@
 import React from 'react';
-import { api, hasStoredSession } from '../lib/api';
-import { Admin, Customer, Seller, UserRole } from '../types';
-
-export type AuthEntity = Customer | Seller | Admin;
+import { api, UNAUTHORIZED_EVENT } from '../lib/api';
+import type { Session } from '../types';
 
 interface AuthContextValue {
-  isLoggedIn: boolean;
+  session: Session | null;
   isLoading: boolean;
-  currentRole: UserRole;
-  currentUser: AuthEntity | null;
-  login: (role: UserRole, entity: AuthEntity) => void;
+  /** Store the session a sign-in or application returned. */
+  setSession: (session: Session) => void;
+  /** Reload the account and memberships, e.g. after a status change. */
+  refresh: () => Promise<void>;
   logout: () => Promise<void>;
-  updateCurrentUser: (entity: AuthEntity) => void;
 }
 
 const AuthContext = React.createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [isLoggedIn, setIsLoggedIn] = React.useState(false);
+  const [session, setSessionState] = React.useState<Session | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
-  const [currentRole, setCurrentRole] = React.useState<UserRole>('customer');
-  const [currentUser, setCurrentUser] = React.useState<AuthEntity | null>(null);
 
-  const login = React.useCallback((role: UserRole, entity: AuthEntity) => {
-    setCurrentRole(role);
-    setCurrentUser(entity);
-    setIsLoggedIn(true);
+  const refresh = React.useCallback(async () => {
+    try {
+      setSessionState(await api.currentSession());
+    } catch (error) {
+      console.error('Could not restore the session:', error);
+      setSessionState(null);
+    }
   }, []);
 
   const logout = React.useCallback(async () => {
-    await api.logout();
-    setIsLoggedIn(false);
-    setCurrentRole('customer');
-    setCurrentUser(null);
-  }, []);
-
-  const updateCurrentUser = React.useCallback((entity: AuthEntity) => {
-    setCurrentUser(entity);
+    try {
+      await api.logout();
+    } catch {
+      // Already signed out on the server; clear the local state anyway.
+    }
+    setSessionState(null);
   }, []);
 
   React.useEffect(() => {
-    const handleUnauthorized = () => logout();
-    window.addEventListener('marketpulse:unauthorized', handleUnauthorized);
-    return () => window.removeEventListener('marketpulse:unauthorized', handleUnauthorized);
-  }, [logout]);
+    void refresh().finally(() => setIsLoading(false));
+  }, [refresh]);
 
   React.useEffect(() => {
-    let active = true;
-    const restoreSession = async () => {
-      if (!hasStoredSession()) {
-        setIsLoading(false);
-        return;
-      }
+    const onUnauthorized = () => setSessionState(null);
+    window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+  }, []);
 
-      try {
-        const result = await api.getCurrentUser();
-        if (!active) return;
-        if (result.authenticated && result.user) {
-          login(result.user.role, result.user.entity);
-        } else {
-          void api.logout().catch((error) => console.error('Session logout failed:', error));
-        }
-      } catch {
-        void api.logout().catch((error) => console.error('Session logout failed:', error));
-      } finally {
-        if (active) setIsLoading(false);
-      }
-    };
-
-    void restoreSession();
-    return () => { active = false; };
-  }, [login]);
-
-  return (
-    <AuthContext.Provider value={{ isLoggedIn, isLoading, currentRole, currentUser, login, logout, updateCurrentUser }}>
-      {children}
-    </AuthContext.Provider>
+  const value = React.useMemo(
+    () => ({ session, isLoading, setSession: setSessionState, refresh, logout }),
+    [session, isLoading, refresh, logout],
   );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthContextValue {
