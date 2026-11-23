@@ -72,7 +72,10 @@ describe('Dinner service', { skip: skipWithoutDatabase }, () => {
     const first = await add({ menuItemId: ids.kacchi, quantity: 2, optionIds: [ids.extraAloo], note: 'one without chilli' });
     assert.equal(first.body.lines[0].unitPrice, 510);
     assert.deepEqual(first.body.lines[0].options, ['Extra aloo']);
-    await add({ menuItemId: ids.borhani, quantity: 4 });
+    await add({ menuItemId: ids.borhani, quantity: 3 });
+    const again = await add({ menuItemId: ids.borhani });
+    assert.equal(again.body.lines.filter((l: any) => l.name === 'Borhani').length, 1, 'the same dish twice is one line');
+    assert.equal(again.body.lines.find((l: any) => l.name === 'Borhani').quantity, 4);
     assert.match((await add({ menuItemId: ids.lassi })).body.error, /sold out/);
     assert.match((await add({ menuItemId: ids.borhani, optionIds: [ids.extraAloo] })).body.error, /does not belong/);
 

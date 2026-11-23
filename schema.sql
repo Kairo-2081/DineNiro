@@ -857,6 +857,7 @@ DECLARE
     v_options JSONB;
     v_delta NUMERIC;
     v_option_count INTEGER;
+    v_existing VARCHAR;
 BEGIN
     PERFORM dineniro_order_lock_for_change(p_restaurant_id, p_order_id);
     SELECT * INTO v_item FROM menu_items WHERE restaurant_id = p_restaurant_id AND id = p_menu_item_id;
@@ -870,6 +871,17 @@ BEGIN
     IF v_option_count <> (SELECT COUNT(DISTINCT x) FROM jsonb_array_elements_text(COALESCE(p_option_ids, '[]'::JSONB)) x) THEN
         RAISE EXCEPTION 'Service Error: one of the chosen options does not belong to %.', v_item.name;
     END IF;
+
+    -- Tapping the same dish again adds to the unsent line instead of starting a new one.
+    UPDATE order_items SET quantity = LEAST(quantity + p_quantity, 99)
+    WHERE id = (
+        SELECT id FROM order_items
+        WHERE order_id = p_order_id AND status = 'draft' AND menu_item_id = v_item.id
+          AND options = v_options AND note = COALESCE(p_note, '')
+        ORDER BY created_at LIMIT 1
+    )
+    RETURNING id INTO v_existing;
+    IF v_existing IS NOT NULL THEN RETURN v_existing; END IF;
 
     INSERT INTO order_items (id, restaurant_id, order_id, menu_item_id, name, unit_price, quantity, options, note, station, added_by)
     VALUES (p_id, p_restaurant_id, p_order_id, v_item.id, v_item.name, v_item.price + v_delta, p_quantity, v_options,
