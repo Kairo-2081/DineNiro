@@ -35,6 +35,10 @@ A multi-restaurant platform: each restaurant gets its own workspace and team, an
 | <img src="./.github/assets/readme/floor.jpg" alt="Floor plan with tables coloured by status" /> | <img src="./.github/assets/readme/order.jpg" alt="Waiter ordering for a table" /> |
 | **Kitchen display** | **Bill and receipt** |
 | <img src="./.github/assets/readme/kitchen.jpg" alt="Kitchen tickets in New, Cooking and Ready columns" /> | <img src="./.github/assets/readme/bill-receipt.jpg" alt="Paid bill with the printed receipt" /> |
+| **Reservations** | **Stock** |
+| <img src="./.github/assets/readme/bookings.jpg" alt="Day timeline of table bookings" /> | <img src="./.github/assets/readme/stock.jpg" alt="Ingredients against par with delivery, count and waste" /> |
+
+<img src="./.github/assets/readme/reports.jpg" alt="Reports: sales by hour, payment mix, top dishes, staff and the money breakdown" width="900" />
 
 **The platform**
 
