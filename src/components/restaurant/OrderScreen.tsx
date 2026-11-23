@@ -165,7 +165,9 @@ export function OrderScreen({ orderId }: { orderId: string }) {
                   <span className="flex items-center justify-between gap-2">
                     <span className={`text-[15px] font-semibold ${item.available ? 'text-[#e8b77d]' : ''}`}>{taka(item.price)}</span>
                     {!item.available && <span className="rounded-full border border-[#5a4430] px-2 py-1 text-[11px] font-semibold text-muted">Sold out</span>}
-                    {item.available && item.options.length > 0 && <span className="rounded-full border border-gold-soft px-2 py-1 text-[11px] font-semibold text-[#e8b77d]">Options</span>}
+                    {item.available && item.portionsLeft !== null && item.portionsLeft <= 5 ? (
+                      <span className="rounded-full bg-[#a9532a] px-2 py-1 text-[11px] font-semibold text-[#fff1e2]">{item.portionsLeft === 0 ? 'Check stock' : `${item.portionsLeft} left`}</span>
+                    ) : item.available && item.options.length > 0 && <span className="rounded-full border border-gold-soft px-2 py-1 text-[11px] font-semibold text-[#e8b77d]">Options</span>}
                   </span>
                 </button>
               ))}

@@ -10,6 +10,7 @@ import { KitchenScreen } from './KitchenScreen';
 import { OrderScreen } from './OrderScreen';
 import { Rail, ScreenHeader } from './Rail';
 import { SetupScreen } from './SetupScreen';
+import { StockScreen } from './StockScreen';
 import { StaffManager } from './StaffManager';
 import { can, homeScreen, SCREENS_FOR_ROLE, useWorkspace, WorkspaceContext, type Screen } from './workspace';
 
@@ -74,6 +75,7 @@ function CurrentScreen({ screen }: { screen: Screen }) {
     case 'kitchen': return <KitchenScreen />;
     case 'bills': return <BillsScreen billId={screen.billId} />;
     case 'bookings': return <BookingsScreen />;
+    case 'stock': return <StockScreen />;
     case 'setup': return <SetupScreen />;
     case 'team': return <TeamScreen />;
     default: return <FloorScreen />;
