@@ -1,109 +1,52 @@
-# GoCart Database Design
+# DineNiro database design
 
-## Entity-Relationship Diagram
+DineNiro runs on PostgreSQL. `schema.sql` is applied on every server start, so every statement in it is idempotent. The API never writes SQL inline against tables: every read and write goes through a `dineniro_*` function in the schema.
+
+## Entity-relationship diagram
 
 ```mermaid
 erDiagram
     USERS {
         varchar id PK
-        varchar username UK
-        varchar password
-        varchar email UK
-        varchar role
-        timestamptz created_at
-    }
-    CUSTOMERS {
-        varchar id PK, FK
+        varchar username UK "lower-case, unique ignoring case"
+        varchar email UK "unique ignoring case"
+        varchar password "bcrypt hash"
         varchar name
-        varchar number
-        varchar address_house_name
-        varchar address_street
-        varchar address_city
-        varchar address_postal_code
-        text address_additional_info
+        varchar phone
+        varchar role "admin | staff"
         timestamptz created_at
     }
-    SELLERS {
-        varchar id PK, FK
-        varchar name
-        varchar number
-        text logo
-        text description
-        varchar status
-        varchar address_house_name
-        varchar address_street
-        varchar address_city
-        varchar address_postal_code
-        text address_additional_info
-        timestamptz created_at
-    }
-    ADMINS {
-        varchar id PK, FK
-        varchar name
-        varchar number
-        varchar address_house_name
-        varchar address_street
-        varchar address_city
-        varchar address_postal_code
-        text address_additional_info
-        timestamptz created_at
-    }
-    CATEGORIES {
-        varchar id PK
-        varchar name UK
-    }
-    PRODUCTS {
+    RESTAURANTS {
         varchar id PK
         varchar name
-        text image
-        text description
-        numeric price
-        varchar voucher
-        integer stock
-        varchar product_status
-        varchar category_id FK
-        varchar seller_id FK
+        varchar phone
+        varchar address
+        varchar area
+        varchar city
+        varchar cuisine
+        varchar trade_licence_no
+        varchar vat_bin
+        varchar status "pending | approved | rejected | suspended"
+        text status_reason
+        varchar created_by FK
+        timestamptz created_at
+        timestamptz status_changed_at
+    }
+    STAFF_MEMBERSHIPS {
+        varchar restaurant_id PK, FK
+        varchar user_id PK, FK
+        varchar role "owner | manager | waiter | chef | cashier | host"
+        boolean active
         timestamptz created_at
     }
-    CART {
-        varchar id PK
-        varchar customer_id FK
-        varchar product_id FK
-        integer quantity
-    }
-    ORDERS {
-        varchar id PK
-        varchar tracking_id UK
-        varchar customer_id FK
-        text items_json
-        numeric subtotal
-        numeric shipping_fee
-        varchar status
-        text shipping_address_json
-        text billing_address_json
-        text additional_info
-        timestamptz order_placed_at
-    }
-    ORDER_ITEMS {
-        bigint order_item_id PK
-        varchar order_id FK
-        varchar product_id FK
-        varchar seller_id FK
-        varchar product_id_snapshot
-        varchar seller_id_snapshot
-        varchar product_name
-        numeric unit_price
-        integer quantity
-        text image
-    }
-    REVIEWS {
-        varchar id PK
-        varchar product_id FK
-        varchar customer_id FK
-        varchar customer_name
-        text review_text
-        integer rating
-        timestamptz created_at
+    RESTAURANT_STATUS_AUDIT {
+        bigserial id PK
+        varchar restaurant_id FK
+        varchar old_status
+        varchar new_status
+        text reason
+        varchar changed_by FK
+        timestamptz changed_at
     }
     AUTH_SESSIONS {
         varchar jti PK
@@ -112,58 +55,50 @@ erDiagram
         timestamptz revoked_at
         timestamptz created_at
     }
-    SELLER_STATUS_AUDIT {
-        integer audit_id PK
-        varchar seller_id FK
-        varchar old_status
-        varchar new_status
-        timestamptz changed_at
-    }
-    ORDER_STATUS_AUDIT {
-        integer audit_id PK
-        varchar order_id FK
-        varchar old_status
-        varchar new_status
-        timestamptz changed_at
-    }
 
-    USERS ||--o| CUSTOMERS : "customer role profile"
-    USERS ||--o| SELLERS : "seller role profile"
-    USERS ||--o| ADMINS : "admin role profile"
-    USERS ||--o{ AUTH_SESSIONS : authenticates
-    CATEGORIES ||--o{ PRODUCTS : classifies
-    SELLERS ||--o{ PRODUCTS : owns
-    CUSTOMERS ||--o{ CART : owns
-    PRODUCTS ||--o{ CART : appears_in
-    CUSTOMERS ||--o{ ORDERS : places
-    ORDERS ||--|{ ORDER_ITEMS : contains
-    PRODUCTS o|--o{ ORDER_ITEMS : purchased_as
-    SELLERS o|--o{ ORDER_ITEMS : sold_as
-    CUSTOMERS ||--o{ REVIEWS : writes
-    PRODUCTS ||--o{ REVIEWS : receives
-    SELLERS ||--o{ SELLER_STATUS_AUDIT : audited
-    ORDERS ||--o{ ORDER_STATUS_AUDIT : audited
+    USERS ||--o{ STAFF_MEMBERSHIPS : "works as"
+    RESTAURANTS ||--|{ STAFF_MEMBERSHIPS : "employs"
+    RESTAURANTS ||--o{ RESTAURANT_STATUS_AUDIT : "history"
+    USERS |o--o{ RESTAURANT_STATUS_AUDIT : "changed by"
+    USERS |o--o{ RESTAURANTS : "applied"
+    USERS ||--o{ AUTH_SESSIONS : "signs in"
 ```
 
-## Keys and Cardinalities
+## Accounts
 
-- Each account has one canonical row in `users`. Its ID is also the primary/foreign key of exactly one role profile; the stored role must match the profile table.
-- A seller owns many products. Each product belongs to one seller and one category.
-- Customers and products have a many-to-many cart relationship, represented by `cart`; `(customer_id, product_id)` is unique.
-- Orders and products have a many-to-many relationship represented by `order_items`; each line stores quantity and purchase-time product details. `(order_id, product_id_snapshot)` is unique.
-- Reviews are an associative entity between customers and products, with a unique `(product_id, customer_id)` pair and review-specific attributes.
-- Each customer may place many orders. Audit records belong to one seller or order. A user may have many revocable login sessions.
+There are two kinds of account. A **platform admin** (`users.role = 'admin'`) approves and suspends restaurants and never works inside one. A **staff** account (`role = 'staff'`) belongs to restaurants through `staff_memberships`, with one role per restaurant. The same person can be a manager at one restaurant and a waiter at another.
 
-## Normalization and Referential Actions
+The first admin is created at start-up from `DINENIRO_ADMIN_PASSWORD`. Later admins are added by an existing admin. No demo data is seeded.
 
-Credentials, login identifiers, and roles live only in `users`; profile tables hold role-specific data. Joined profile views preserve the API response shape without duplicating credentials. Profile IDs reference `users.id` with `ON DELETE CASCADE`. Database triggers reject profile rows whose role does not match the account and prevent role changes while a profile exists.
+## Restaurant approval
 
-`order_items` is the normalized order/product bridge. `orders.items_json` remains as a compatibility snapshot for existing order payloads and legacy records; schema migration backfills the bridge from it, checkout writes both in one transaction, and order API reads build item arrays from `order_items`. Snapshot IDs and descriptive fields preserve purchase history after catalog deletion. Optional live product/seller foreign keys use `ON DELETE SET NULL`. `reviews.customer_name` preserves the name shown when the review was written, and `orders.subtotal` preserves the invoiced total; both are intentional historical snapshots.
+A new owner applies through `dineniro_restaurant_apply`, which creates their account, the restaurant (status `pending`) and their `owner` membership in one transaction.
 
-Delete rules are explicit: orders restrict customer deletion; carts cascade with customers/products; category deletion is restricted while products use it; seller deletion cascades products; reviews cascade with products/customers; audit rows and sessions cascade with their parent. Foreign keys default to `ON UPDATE NO ACTION` because primary IDs are immutable, except auth sessions use `ON UPDATE CASCADE` to preserve sessions while migrating legacy account IDs.
+`dineniro_restaurant_status_update` allows only these moves:
 
-CHECK/UNIQUE/DEFAULT rules enforce role and status domains, non-negative prices/stock/order totals, positive quantities, ratings from 1 to 5, case-insensitively unique usernames/emails/category names, unique cart and review pairs, unique tracking IDs, and unique order lines.
+| From | To |
+|---|---|
+| pending | approved, rejected |
+| approved | suspended |
+| suspended | approved |
+| rejected | pending |
 
-## Backend Foundation
+Rejecting or suspending needs a reason, which owners and staff see. The `trigger_restaurant_status_change` trigger writes every change, including the first `pending` row, to `restaurant_status_audit`. The acting user comes from the transaction setting `dineniro.actor_id`, which the status functions set.
 
-The backend uses a shared `pg` connection pool and explicit `BEGIN`/`COMMIT`/`ROLLBACK` through `withTransaction`. Startup applies `schema.sql` and seeds demo data from `src/db/seed.ts`; startup aborts if initialization fails. Resource API routes use parameterized database functions/procedures. Checkout creates the order and line items, decrements inventory, and clears the cart atomically. Authentication routes are `POST /api/auth/login`, `GET /api/auth/me`, and `POST /api/auth/logout`; customer/seller signup is public, while admin creation requires an admin session.
+Staff management requires an approved restaurant. That rule is enforced in the API (`requireMembership({ requireApproved: true })`).
+
+## Staff rules held by the database
+
+- `trigger_membership_user_role`: only staff accounts can join a restaurant.
+- `trigger_protect_last_owner`: removing, demoting or pausing the last active owner is refused. The restaurant's owner rows are locked first, so two concurrent requests cannot both remove the last two owners.
+- `dineniro_staff_add` links an existing staff account found by email instead of creating a duplicate. That account keeps its own password.
+
+Owners can manage every role. Managers can add and change cashiers, hosts, waiters and chefs only. The API enforces this in `server/routes/staff.routes.ts`.
+
+## Isolation between restaurants
+
+Every restaurant-scoped route has `:restaurantId` in its path and goes through `requireMembership`. That middleware loads the caller's own active membership for that restaurant. If there is none, it answers 404, the same answer as for a restaurant that does not exist, so one restaurant cannot find out another's IDs. Later tables (tables, orders, tickets, stock) will carry `restaurant_id` and be read only through this check.
+
+## Sessions
+
+Each sign-in issues a 12-hour JWT whose `jti` is stored in `auth_sessions`. Every API request checks that the `jti` is still active, so signing out revokes the session immediately. Expired rows are cleaned up when the next session is created.

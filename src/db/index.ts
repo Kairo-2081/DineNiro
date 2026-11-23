@@ -55,6 +55,11 @@ export function getDatabaseProviderInfo() {
   };
 }
 
+/** TLS is on by default for hosted databases. Set DATABASE_SSL=false for a local Postgres without TLS. */
+function databaseSsl() {
+  return process.env.DATABASE_SSL === 'false' ? false : { rejectUnauthorized: false };
+}
+
 export const createPool = () => {
   if (!global._postgresPool) {
     const supabaseUrl = process.env.SUPABASE_DB_URL || (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('supabase') ? process.env.DATABASE_URL : undefined);
@@ -71,18 +76,14 @@ export const createPool = () => {
           password: parsed.password,
           port: parsed.port,
           database: parsed.database,
-          ssl: {
-            rejectUnauthorized: false,
-          },
+          ssl: databaseSsl(),
           max: 10,
           connectionTimeoutMillis: 15000,
         });
       } else {
         global._postgresPool = new Pool({
           connectionString: connStr,
-          ssl: {
-            rejectUnauthorized: false,
-          },
+          ssl: databaseSsl(),
           max: 10,
           connectionTimeoutMillis: 15000,
         });
