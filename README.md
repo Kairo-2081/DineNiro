@@ -96,6 +96,16 @@ npm run dev      # http://localhost:3000
 
 The schema is applied on start-up. Sign in as `admin` with your admin password, then apply for a restaurant from a private window and approve it. As the owner, open **Setup** to add tables and dishes, and **Team** to add staff.
 
+## Deploy
+
+DineNiro runs on [Render](https://render.com) with a [Neon](https://neon.tech) database, both in Singapore. `render.yaml` describes the service:
+
+1. Create an empty Neon project (PostgreSQL 15 or later) and copy its **direct** connection string, the one without `-pooler` in the host.
+2. In Render, choose **New → Blueprint** and pick this repository. Paste the Neon string as `DATABASE_URL` when asked.
+3. Render generates `JWT_SECRET` and `DINENIRO_ADMIN_PASSWORD`. On first start the app applies `schema.sql` and creates the platform admin. Find the password under the service's **Environment** tab and sign in as `admin`.
+
+Every push to `main` redeploys. The free plan sleeps after 15 minutes without visitors and takes about a minute to wake. Choose the Starter plan for a restaurant in real use.
+
 ## Tests
 
 ```bash

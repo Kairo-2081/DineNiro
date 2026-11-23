@@ -28,6 +28,7 @@ describe('DineNiro API', { skip: skipWithoutDatabase }, () => {
     const guest = new Browser(base);
     assert.equal((await guest.get('/api/admin/stats')).status, 401);
     assert.deepEqual((await guest.get('/api/auth/me')).body, { authenticated: false, session: null });
+    assert.deepEqual((await guest.get('/api/health')).body, { ok: true });
     assert.equal((await guest.post('/api/auth/login', { identifier: 'admin', password: 'wrong-password' })).status, 401);
   });
 

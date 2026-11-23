@@ -104,6 +104,7 @@ const PUBLIC_API_REQUESTS = new Set([
   'POST /api/auth/login',
   'POST /api/restaurants',
   'GET /api/auth/me', // answers guests with { authenticated: false }
+  'GET /api/health', // for the host's health checks
 ]);
 
 /**
