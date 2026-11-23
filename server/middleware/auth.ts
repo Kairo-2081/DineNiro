@@ -99,10 +99,11 @@ async function hasActiveSession(jti: string): Promise<boolean> {
   return result.rows[0]?.active === true;
 }
 
-/** Guest endpoints: signing in and applying to put a restaurant on the platform. */
+/** Guest endpoints: checking the session, signing in, and applying to put a restaurant on the platform. */
 const PUBLIC_API_REQUESTS = new Set([
   'POST /api/auth/login',
   'POST /api/restaurants',
+  'GET /api/auth/me', // answers guests with { authenticated: false }
 ]);
 
 /**

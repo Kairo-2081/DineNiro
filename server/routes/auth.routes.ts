@@ -53,10 +53,10 @@ router.post('/api/auth/login', async (req, res) => {
   }
 });
 
-router.get('/api/auth/me', requireAuth, async (req: AuthRequest, res) => {
+router.get('/api/auth/me', async (req: AuthRequest, res) => {
   try {
-    const session = await loadSession(req.user!.sub);
-    if (!session) return res.status(401).json({ authenticated: false, session: null });
+    const session = req.user ? await loadSession(req.user.sub) : null;
+    if (!session) return res.json({ authenticated: false, session: null });
     res.json({ authenticated: true, session });
   } catch (error) {
     respondApiError(res, error, 'Error fetching current user:');

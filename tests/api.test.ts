@@ -79,7 +79,7 @@ describe('DineNiro API', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL is not
   test('guests can only reach sign-in and applying', async () => {
     const guest = new Browser(base);
     assert.equal((await guest.get('/api/admin/stats')).status, 401);
-    assert.equal((await guest.get('/api/auth/me')).status, 401);
+    assert.deepEqual((await guest.get('/api/auth/me')).body, { authenticated: false, session: null });
     assert.equal((await guest.post('/api/auth/login', { identifier: 'admin', password: 'wrong-password' })).status, 401);
   });
 
@@ -183,6 +183,7 @@ describe('DineNiro API', { skip: !TEST_DATABASE_URL && 'TEST_DATABASE_URL is not
     const stolen = b.savedCookie;
     assert.equal((await b.post('/api/auth/logout')).status, 204);
     b.savedCookie = stolen;
-    assert.equal((await b.get('/api/auth/me')).status, 401);
+    assert.equal((await b.get('/api/auth/me')).body.authenticated, false);
+    assert.equal((await b.get('/api/admin/stats')).status, 401);
   });
 });
