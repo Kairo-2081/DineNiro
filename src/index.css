@@ -151,3 +151,33 @@ body::after {
     display: none;
   }
 }
+
+/* Printing a bill or receipt: only the slip, sized for 80 mm thermal paper. */
+@media print {
+  @page {
+    size: 80mm auto;
+    margin: 4mm;
+  }
+  body {
+    background: #fff;
+  }
+  body::after {
+    display: none;
+  }
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 72mm !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+  }
+}
