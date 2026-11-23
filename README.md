@@ -1,53 +1,111 @@
-<div align="center">
+<p align="center">
+  <img src="./.github/assets/readme/banner.jpg" alt="DineNiro — restaurant operations, from the floor to the bill" width="100%" />
+</p>
 
-# DineNiro
+<p align="center">
+  <a href="https://dineniro-xhdy.onrender.com"><b>Live demo</b></a>
+  &nbsp;&nbsp;·&nbsp;&nbsp;
+  <a href="#the-service">The service</a>
+  &nbsp;&nbsp;·&nbsp;&nbsp;
+  <a href="#get-started">Get started</a>
+  &nbsp;&nbsp;·&nbsp;&nbsp;
+  <a href="./docs/database-design.md">Database design</a>
+</p>
 
-**Restaurant operations, from the floor to the bill.**
+<p align="center">
+  <img src="https://img.shields.io/badge/React_19-0b0705?style=flat-square&logo=react&logoColor=d8b37c" alt="React 19" />
+  <img src="https://img.shields.io/badge/TypeScript-0b0705?style=flat-square&logo=typescript&logoColor=d8b37c" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/Express-0b0705?style=flat-square&logo=express&logoColor=d8b37c" alt="Express" />
+  <img src="https://img.shields.io/badge/PostgreSQL_·_raw_SQL-0b0705?style=flat-square&logo=postgresql&logoColor=d8b37c" alt="PostgreSQL, raw SQL" />
+  <img src="https://img.shields.io/badge/Tailwind_4-0b0705?style=flat-square&logo=tailwindcss&logoColor=d8b37c" alt="Tailwind 4" />
+  <img src="https://img.shields.io/badge/Render_+_Neon-0b0705?style=flat-square&logo=render&logoColor=d8b37c" alt="Hosted on Render with Neon" />
+</p>
 
-A multi-restaurant platform: each restaurant gets its own workspace and team, and a platform admin approves every restaurant before it goes live.
+<br />
 
-![React](https://img.shields.io/badge/React-19-61dafb?logo=react&logoColor=black)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?logo=typescript&logoColor=white)
-![Express](https://img.shields.io/badge/Express-4-000000?logo=express&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-raw%20SQL-4169e1?logo=postgresql&logoColor=white)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind-4-38bdf8?logo=tailwindcss&logoColor=white)
+> **DineNiro runs a restaurant's whole service in one place.** Every restaurant gets its own workspace and team; a platform admin approves each one before it goes live. Waiters, chefs, cashiers and hosts each see only the screens they use — and the rules that matter most (no double-booked tables, no cross-restaurant data, stock that always adds up) are enforced by the database itself, not just the interface.
 
-<img src="./.github/assets/readme/landing.jpg" alt="DineNiro sign-in page" width="900" />
+<br />
 
-</div>
+## The service
 
-## What works today
+<p align="center">
+  <img src="./.github/assets/readme/gallery.jpg" alt="Six DineNiro screens: floor, ordering, kitchen display, bill and receipt, reservations, stock" width="100%" />
+</p>
 
-**Running a service**
+<table>
+<tr>
+<td width="50%" valign="top">
 
-- **Floor.** Tables by section, coloured by what is happening at each one: free, seated, cooking, food ready, served, bill printed. Hosts and waiters seat guests with one tap.
-- **Orders.** Waiters order from the menu by category or search, with priced options ("Extra aloo +৳30") and notes for the kitchen. Sold-out dishes can't be ordered. Nothing reaches the kitchen until they press Send.
-- **Kitchen display.** Tickets move New → Cooking → Ready → Served, filtered by station, with timers that turn amber at 10 minutes and red when late. The floor sees food-ready tables at once.
-- **Bills and payment.** Discount (managers only), then service charge, then VAT, at the restaurant's own rates. Split by number of guests and pay by cash (with change), card, bKash or Nagad. The receipt prints on 80 mm thermal paper with the restaurant's BIN. Paying in full frees the table.
-- **Reservations.** A day timeline of tables from 11:00 to midnight. Tap an empty spot to book it, or let DineNiro suggest tables that fit the party and are free for the whole time. The database itself refuses overlapping bookings, even two made at the same moment. Tables booked within the hour show as Reserved on the floor.
-- **Waitlist.** Walk-ins with a quoted wait. DineNiro flags anyone waiting longer than quoted, and won't seat a walk-in at a table booked within the hour.
-- **Stock.** Ingredients with par levels and suppliers, and a recipe for each dish. Sending a dish to the kitchen takes its recipe off stock. Voiding it before cooking starts puts the stock back. Chefs record deliveries, counts and waste, and every change is in a ledger showing the dish and table behind each sale. Owners see the food cost of every plate. Waiters see "3 left" when stock runs low. Low stock warns, it doesn't block, because counts drift in a real kitchen.
-- **Reports.** Today, yesterday, 7 or 30 days, each compared with the period before. Net sales, covers, average check, sales by hour or day, payment mix, top dishes, each server's totals and table times, and a money breakdown for the accounts (discounts, service charge, VAT collected, voids, food cost %). Exports to CSV. Every figure comes from paid bills, so it matches the till.
-- **Setup.** Owners and managers add tables, menu categories and dishes, mark dishes sold out, and set billing rates.
+### 🍽️ Floor
+Tables by section, coloured by what's happening: free, seated, cooking, food ready, served, bill printed. One tap seats a party.
 
-| Floor | Order |
-|---|---|
-| <img src="./.github/assets/readme/floor.jpg" alt="Floor plan with tables coloured by status" /> | <img src="./.github/assets/readme/order.jpg" alt="Waiter ordering for a table" /> |
-| **Kitchen display** | **Bill and receipt** |
-| <img src="./.github/assets/readme/kitchen.jpg" alt="Kitchen tickets in New, Cooking and Ready columns" /> | <img src="./.github/assets/readme/bill-receipt.jpg" alt="Paid bill with the printed receipt" /> |
-| **Reservations** | **Stock** |
-| <img src="./.github/assets/readme/bookings.jpg" alt="Day timeline of table bookings" /> | <img src="./.github/assets/readme/stock.jpg" alt="Ingredients against par with delivery, count and waste" /> |
+### 📝 Orders
+Order by category or search, with priced options (“Extra aloo +৳30”) and kitchen notes. Sold-out dishes can't be ordered, and nothing reaches the kitchen until the waiter presses **Send**.
 
-<img src="./.github/assets/readme/reports.jpg" alt="Reports: sales by hour, payment mix, top dishes, staff and the money breakdown" width="900" />
+### 🔥 Kitchen display
+Tickets move **New → Cooking → Ready → Served**, filtered by station. Timers turn amber at 10 minutes and red when late; the floor sees ready food instantly.
 
-**The platform**
+### 🧾 Bills & payment
+Discount (managers only), then service charge, then VAT at the restaurant's own rates. Split by guests; pay by cash with change, card, **bKash** or **Nagad**. Receipts print on 80 mm thermal paper with the restaurant's BIN.
 
-- **Restaurant applications.** An owner applies with the restaurant's details, trade licence and VAT BIN, and can sign in straight away to see where the application stands.
-- **Platform approvals.** A platform admin approves, rejects or suspends with a reason, reinstates or reopens, and has a full audit trail of who changed what.
-- **Teams and roles.** Owners and managers add staff as manager, cashier, host, waiter or chef. Each role sees only the screens it uses: chefs open straight into the kitchen, cashiers into bills.
-- **Isolation between restaurants.** Every restaurant request is checked against the signed-in person's own membership, and the database itself stops an order from pointing at another restaurant's table or dish.
+</td>
+<td width="50%" valign="top">
 
-### Who can do what
+### 📅 Reservations
+A day timeline from 11:00 to midnight. Tap a gap to book, or let DineNiro suggest tables that fit the party for the whole slot. The database refuses overlapping bookings — even two made at the same instant.
+
+### ⏳ Waitlist
+Walk-ins with a quoted wait. Anyone past their quote is flagged, and walk-ins are never seated at a table booked within the hour.
+
+### 📦 Stock & recipes
+Sending a dish deducts its recipe; voiding before cooking returns it. Deliveries, counts and waste go into a ledger that names the dish and table behind every sale. Owners see food cost per plate; waiters see “3 left”.
+
+### ⚙️ Setup
+Owners and managers manage tables, categories, dishes, sold-out flags and billing rates.
+
+</td>
+</tr>
+</table>
+
+<br />
+
+<p align="center">
+  <img src="./.github/assets/readme/reports.jpg" alt="Reports: sales by hour, payment mix, top dishes, staff and the money breakdown" width="100%" />
+</p>
+
+**Reports** compare today, yesterday, 7 or 30 days against the period before: net sales, covers, average check, sales by hour or day, payment mix, top dishes, each server's totals and table times, and a money breakdown for the accounts — discounts, service charge, VAT collected, voids and food cost %. Everything comes from paid bills, so it matches the till, and it all exports to CSV.
+
+<br />
+
+## The platform
+
+<table>
+<tr>
+<td width="33%" valign="top">
+
+**Applications**<br />
+An owner applies with the trade licence and VAT BIN, and can sign in at once to follow the review.
+
+</td>
+<td width="33%" valign="top">
+
+**Approvals**<br />
+Platform admins approve, reject, suspend, reinstate or reopen — always with a reason, always in the audit trail.
+
+</td>
+<td width="33%" valign="top">
+
+**Isolation**<br />
+Every request is checked against the user's membership, and composite keys stop an order from touching another restaurant's tables or dishes.
+
+</td>
+</tr>
+</table>
+
+<details>
+<summary><b>Who can do what</b></summary>
+<br />
 
 | | Owner | Manager | Waiter | Host | Cashier | Chef |
 |---|:-:|:-:|:-:|:-:|:-:|:-:|
@@ -64,76 +122,79 @@ A multi-restaurant platform: each restaurant gets its own workspace and team, an
 | Reports | ✓ | ✓ | | | | |
 | Tables, menu, billing rates, team | ✓ | ✓ | | | | |
 
-Managers manage cashiers, hosts, waiters and chefs. Only owners manage owners and managers.
+Managers manage cashiers, hosts, waiters and chefs. Only owners manage owners and managers. Chefs open straight into the kitchen, cashiers into bills.
 
-### Coming next
+</details>
 
-| Stage | What it adds |
-|---|---|
-| Printing | Automatic receipt and kitchen-ticket printing through a small helper on the counter PC (browsers can't print silently) |
+<br />
 
 ## Get started
 
-You need Node.js 20 or later and PostgreSQL 15 or later (with the standard `btree_gist` extension, which Supabase and Neon both provide).
+You need **Node.js 20+** and **PostgreSQL 15+** with the standard `btree_gist` extension (Neon and Supabase both include it).
 
 ```bash
 npm ci
-cp .env.example .env
+cp .env.example .env   # then fill it in
+npm run dev            # http://localhost:3000
 ```
 
-Fill in `.env`:
-
-| Variable | What it is |
+| Variable | |
 |---|---|
-| `DATABASE_URL` | PostgreSQL connection string. Set `DATABASE_SSL=false` for a local database without TLS. Supabase variables work too. |
-| `JWT_SECRET` | At least 32 random characters. The server refuses to start without it. |
-| `DINENIRO_ADMIN_PASSWORD` | Password for the first platform admin (12+ characters). If it's missing, no admin is created. |
-| `DINENIRO_ADMIN_EMAIL` | Optional email for that admin. Defaults to `admin@dineniro.local`. |
+| `DATABASE_URL` | PostgreSQL connection string. Add `DATABASE_SSL=false` for a local database without TLS. |
+| `JWT_SECRET` | 32+ random characters — the server won't start without it. |
+| `DINENIRO_ADMIN_PASSWORD` | 12+ characters. Creates the first platform admin on first start. |
+| `DINENIRO_ADMIN_EMAIL` | Optional. Defaults to `admin@dineniro.local`. |
+
+The schema applies itself on start-up. Sign in as `admin`, apply for a restaurant from a private window, approve it, then open **Setup** and **Team** as the owner.
+
+<details>
+<summary><b>Deploy on Render + Neon</b></summary>
+<br />
+
+`render.yaml` describes the whole service (Singapore region).
+
+1. Create an empty Neon project and copy its **direct** connection string — the host without `-pooler`.
+2. In Render choose **New → Blueprint**, pick this repo, and paste the Neon string as `DATABASE_URL`.
+3. Render generates `JWT_SECRET` and `DINENIRO_ADMIN_PASSWORD`. On first start the app builds the schema and the admin account; the password is under the service's **Environment** tab.
+
+Every push to `main` redeploys. The free plan sleeps after 15 idle minutes and takes about a minute to wake — use Starter for a restaurant in real service.
+
+</details>
+
+<details>
+<summary><b>Tests</b></summary>
+<br />
 
 ```bash
-npm run dev      # http://localhost:3000
-```
-
-The schema is applied on start-up. Sign in as `admin` with your admin password, then apply for a restaurant from a private window and approve it. As the owner, open **Setup** to add tables and dishes, and **Team** to add staff.
-
-## Deploy
-
-DineNiro runs on [Render](https://render.com) with a [Neon](https://neon.tech) database, both in Singapore. `render.yaml` describes the service:
-
-1. Create an empty Neon project (PostgreSQL 15 or later) and copy its **direct** connection string, the one without `-pooler` in the host.
-2. In Render, choose **New → Blueprint** and pick this repository. Paste the Neon string as `DATABASE_URL` when asked.
-3. Render generates `JWT_SECRET` and `DINENIRO_ADMIN_PASSWORD`. On first start the app applies `schema.sql` and creates the platform admin. Find the password under the service's **Environment** tab and sign in as `admin`.
-
-Every push to `main` redeploys. The free plan sleeps after 15 minutes without visitors and takes about a minute to wake. Choose the Starter plan for a restaurant in real use.
-
-## Tests
-
-```bash
-npm run lint     # TypeScript
-npm test         # unit tests; API tests too when TEST_DATABASE_URL is set
+npm run lint   # TypeScript
 TEST_DATABASE_URL=postgresql://postgres@localhost:5432/dineniro_test npm test
 ```
 
-The API tests start the real server against that database and **wipe it first**, so point them at a database you don't need. They cover applying, the approval rules and audit trail, owner and manager limits, the last-owner rule, isolation between restaurants, session revocation, and a whole dinner service: setup, seating, ordering with options, the kitchen ticket's steps, voids, discounts, VAT and service charge, split payment and the receipt.
+The API tests run the real server against that database and **wipe it first**. They cover applications, approvals and the audit trail, role limits, the last-owner rule, isolation between restaurants, session revocation, a full dinner service, overlapping bookings, stock deduction and reports.
 
-## API
+</details>
+
+<details>
+<summary><b>API reference</b></summary>
+<br />
 
 | Method | Path | Who |
 |---|---|---|
 | `POST` | `/api/auth/login` | anyone |
 | `GET` | `/api/auth/me` | anyone (guests get `authenticated: false`) |
 | `POST` | `/api/auth/logout` | signed in |
+| `GET` | `/api/health` | anyone |
 | `POST` | `/api/restaurants` | anyone: apply with a new owner account |
 | `GET` | `/api/restaurants/:restaurantId` | members of that restaurant |
-| `GET` `POST` | `/api/restaurants/:restaurantId/staff` | owners and managers, approved restaurants |
-| `PATCH` `DELETE` | `/api/restaurants/:restaurantId/staff/:userId` | owners and managers, approved restaurants |
+| `GET` `POST` | `/api/restaurants/:restaurantId/staff` | owners and managers |
+| `PATCH` `DELETE` | `/api/restaurants/:restaurantId/staff/:userId` | owners and managers |
 | `GET` | `/api/admin/stats` | platform admins |
 | `GET` | `/api/admin/restaurants?status=` | platform admins |
 | `PUT` | `/api/admin/restaurants/:id/status` | platform admins |
 | `GET` | `/api/admin/restaurants/audit` | platform admins |
 | `POST` | `/api/admin/admins` | platform admins |
 
-Service routes, all under `/api/restaurants/:restaurantId` for approved restaurants (roles as in the table above):
+Service routes, under `/api/restaurants/:restaurantId` for approved restaurants:
 
 | Method | Path | What it does |
 |---|---|---|
@@ -145,30 +206,42 @@ Service routes, all under `/api/restaurants/:restaurantId` for approved restaura
 | `GET` | `/floor` | every table with its current state |
 | `POST` | `/orders` | seat a table |
 | `GET` | `/orders/:orderId` | an order with its lines |
-| `POST` `PATCH` | `/orders/:orderId/items`, `/items/:itemId` | add a dish, change or remove an unsent one |
+| `POST` `PATCH` | `/orders/:orderId/items`, `/items/:itemId` | add a dish; change or remove an unsent one |
 | `POST` | `/orders/:orderId/items/:itemId/void` | void a sent dish with a reason |
 | `POST` | `/orders/:orderId/send` | send unsent dishes to the kitchen |
 | `POST` | `/orders/:orderId/void` | cancel a visit where nothing was sent |
 | `GET` | `/kitchen` | open tickets |
-| `POST` | `/kitchen/:ticketId/advance` | move a ticket one step, naming its current status |
+| `POST` | `/kitchen/:ticketId/advance` | move a ticket one step |
 | `POST` | `/orders/:orderId/bill` | print (or reprint with a discount) the bill |
-| `GET` | `/bills`, `/bills/:billId` | recent bills; one bill with everything for its receipt |
+| `GET` | `/bills`, `/bills/:billId` | recent bills; one bill with its receipt |
 | `POST` | `/bills/:billId/payments` | take a payment |
-| `GET` `POST` / `PUT` | `/reservations?from=&to=`, `/reservations/:id` | bookings in a time range; book or change |
+| `GET` `POST` / `PUT` | `/reservations?from=&to=`, `/reservations/:id` | bookings in a range; book or change |
 | `POST` | `/reservations/:id/close`, `/reservations/:id/seat` | cancel or no-show; seat the party |
-| `GET` | `/availability?startsAt=&minutes=&party=` | tables free for that time that fit the party |
+| `GET` | `/availability?startsAt=&minutes=&party=` | free tables that fit the party |
 | `GET` `POST` | `/waitlist` | waiting walk-ins; add one |
 | `POST` | `/waitlist/:id/seat`, `/waitlist/:id/left` | seat at a table; they left |
-| `GET` `POST` / `PUT` | `/ingredients`, `/ingredients/:id` | stock list with usage; add or change an ingredient |
+| `GET` `POST` / `PUT` | `/ingredients`, `/ingredients/:id` | stock list; add or change an ingredient |
 | `POST` | `/ingredients/:id/stock` | record a delivery, count or waste |
-| `GET` | `/ingredients/:id/history` | the ledger for one ingredient |
+| `GET` | `/ingredients/:id/history` | one ingredient's ledger |
 | `GET` `PUT` | `/recipes/:menuItemId` | a dish's recipe |
-| `GET` | `/reports?from=&to=&tz=` | sales report for a range, with the previous period |
+| `GET` | `/reports?from=&to=&tz=` | sales report with the previous period |
 
-## Architecture
+</details>
 
-- `schema.sql`: tables, integrity triggers, and every query the API runs, as `dineniro_*` functions. See [database design](./docs/database-design.md).
-- `server/`: Express API. `app.ts` builds it, `index.ts` adds Vite in development or the built files in production.
-- `src/`: React app, Tailwind 4 theme in `src/index.css`.
+<br />
 
-Sessions are httpOnly cookies holding a 12-hour JWT whose ID is stored in the database, so signing out takes effect immediately. Passwords are hashed with bcrypt.
+## Under the hood
+
+- **`schema.sql`**: every table, integrity trigger and query the API runs, as `dineniro_*` PostgreSQL functions. Read the [database design](./docs/database-design.md).
+- **`server/`**: Express API. `app.ts` builds it; `index.ts` adds Vite in development or serves the build in production.
+- **`src/`**: React 19 app, with the Tailwind 4 theme in `src/index.css`.
+
+Sessions are httpOnly cookies holding a 12-hour JWT whose ID lives in the database, so signing out takes effect immediately. Passwords are hashed with bcrypt.
+
+**Coming next:** silent receipt and kitchen-ticket printing through a small helper on the counter PC, since browsers can't print without a dialog.
+
+<br />
+
+<p align="center">
+  <sub>DineNiro · built for restaurants in Bangladesh · ৳</sub>
+</p>
