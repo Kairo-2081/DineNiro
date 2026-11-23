@@ -749,34 +749,6 @@ BEGIN
 END;
 $$;
 
--- The floor: every active table with what is happening at it right now.
-CREATE OR REPLACE FUNCTION dineniro_floor(p_restaurant_id VARCHAR)
-RETURNS TABLE(
-    table_id VARCHAR, label VARCHAR, seats INTEGER, section VARCHAR, shape VARCHAR,
-    order_id VARCHAR, guests INTEGER, opened_at TIMESTAMPTZ, server_name VARCHAR,
-    state VARCHAR, running_total NUMERIC, unsent_items BIGINT
-)
-LANGUAGE SQL STABLE
-AS $$
-    SELECT t.id, t.label, t.seats, t.section, t.shape,
-           o.id, o.guests, o.opened_at, u.name,
-           CASE
-               WHEN o.id IS NULL THEN 'free'
-               WHEN o.status = 'billed' THEN 'bill'
-               WHEN EXISTS (SELECT 1 FROM kitchen_tickets k WHERE k.order_id = o.id AND k.status = 'ready') THEN 'ready'
-               WHEN EXISTS (SELECT 1 FROM kitchen_tickets k WHERE k.order_id = o.id AND k.status IN ('new', 'cooking')) THEN 'cooking'
-               WHEN EXISTS (SELECT 1 FROM kitchen_tickets k WHERE k.order_id = o.id) THEN 'served'
-               ELSE 'seated'
-           END,
-           COALESCE((SELECT SUM(i.unit_price * i.quantity) FROM order_items i WHERE i.order_id = o.id AND i.status <> 'void'), 0),
-           (SELECT COUNT(*) FROM order_items i WHERE i.order_id = o.id AND i.status = 'draft')
-    FROM dining_tables t
-    LEFT JOIN orders o ON o.restaurant_id = t.restaurant_id AND o.table_id = t.id AND o.status IN ('open', 'billed')
-    LEFT JOIN users u ON u.id = o.opened_by
-    WHERE t.restaurant_id = p_restaurant_id AND t.active
-    ORDER BY t.section, t.sort_order, t.label;
-$$;
-
 -- Orders.
 CREATE OR REPLACE FUNCTION dineniro_order_open(p_restaurant_id VARCHAR, p_id VARCHAR, p_table_id VARCHAR, p_guests INTEGER, p_user_id VARCHAR)
 RETURNS SETOF orders
@@ -1131,4 +1103,274 @@ AS $$
     WHERE b.restaurant_id = p_restaurant_id
     ORDER BY (b.status = 'open') DESC, b.created_at DESC
     LIMIT GREATEST(LEAST(p_limit, 100), 1);
+$$;
+
+-- 6. RESERVATIONS AND THE WAITLIST
+
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+
+-- A booking for a table and a time. Two bookings for one table can never overlap: the database refuses it.
+CREATE TABLE IF NOT EXISTS reservations (
+    id VARCHAR(64) PRIMARY KEY,
+    restaurant_id VARCHAR(64) NOT NULL REFERENCES restaurants(id) ON UPDATE CASCADE ON DELETE CASCADE,
+    table_id VARCHAR(64) NOT NULL,
+    guest_name VARCHAR(120) NOT NULL,
+    phone VARCHAR(50) NOT NULL DEFAULT '',
+    party_size INTEGER NOT NULL,
+    starts_at TIMESTAMPTZ NOT NULL,
+    ends_at TIMESTAMPTZ NOT NULL,
+    status VARCHAR(12) NOT NULL DEFAULT 'booked',
+    note VARCHAR(300) NOT NULL DEFAULT '',
+    order_id VARCHAR(64),
+    created_by VARCHAR(64) REFERENCES users(id) ON UPDATE CASCADE ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_reservations_table FOREIGN KEY (restaurant_id, table_id)
+        REFERENCES dining_tables (restaurant_id, id) ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_reservations_order FOREIGN KEY (restaurant_id, order_id)
+        REFERENCES orders (restaurant_id, id) ON UPDATE CASCADE ON DELETE SET NULL (order_id),
+    CONSTRAINT chk_reservations_party CHECK (party_size BETWEEN 1 AND 60),
+    CONSTRAINT chk_reservations_time CHECK (ends_at > starts_at AND ends_at <= starts_at + INTERVAL '8 hours'),
+    CONSTRAINT chk_reservations_status CHECK (status IN ('booked', 'seated', 'completed', 'cancelled', 'no_show'))
+);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ex_reservations_no_overlap') THEN
+        ALTER TABLE reservations ADD CONSTRAINT ex_reservations_no_overlap
+            EXCLUDE USING gist (table_id WITH =, tstzrange(starts_at, ends_at) WITH &&)
+            WHERE (status IN ('booked', 'seated'));
+    END IF;
+END;
+$$;
+CREATE INDEX IF NOT EXISTS idx_reservations_day ON reservations (restaurant_id, starts_at);
+
+-- Walk-ins waiting for a table.
+CREATE TABLE IF NOT EXISTS waitlist_entries (
+    id VARCHAR(64) PRIMARY KEY,
+    restaurant_id VARCHAR(64) NOT NULL REFERENCES restaurants(id) ON UPDATE CASCADE ON DELETE CASCADE,
+    guest_name VARCHAR(120) NOT NULL,
+    phone VARCHAR(50) NOT NULL DEFAULT '',
+    party_size INTEGER NOT NULL,
+    quoted_minutes INTEGER NOT NULL DEFAULT 15,
+    note VARCHAR(300) NOT NULL DEFAULT '',
+    status VARCHAR(10) NOT NULL DEFAULT 'waiting',
+    added_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    resolved_at TIMESTAMPTZ,
+    order_id VARCHAR(64),
+    CONSTRAINT fk_waitlist_order FOREIGN KEY (restaurant_id, order_id)
+        REFERENCES orders (restaurant_id, id) ON UPDATE CASCADE ON DELETE SET NULL (order_id),
+    CONSTRAINT chk_waitlist_party CHECK (party_size BETWEEN 1 AND 60),
+    CONSTRAINT chk_waitlist_quote CHECK (quoted_minutes BETWEEN 0 AND 240),
+    CONSTRAINT chk_waitlist_status CHECK (status IN ('waiting', 'seated', 'left'))
+);
+CREATE INDEX IF NOT EXISTS idx_waitlist_waiting ON waitlist_entries (restaurant_id, added_at) WHERE status = 'waiting';
+
+-- When a booked party's bill is paid (or their visit is cancelled), the booking is complete and its time frees up.
+CREATE OR REPLACE FUNCTION complete_reservation_on_close()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF NEW.status IN ('paid', 'void') AND OLD.status NOT IN ('paid', 'void') THEN
+        UPDATE reservations SET status = 'completed', ends_at = GREATEST(starts_at + INTERVAL '1 minute', LEAST(ends_at, CURRENT_TIMESTAMP))
+        WHERE order_id = NEW.id AND status = 'seated';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS trigger_complete_reservation ON orders;
+CREATE TRIGGER trigger_complete_reservation
+AFTER UPDATE OF status ON orders
+FOR EACH ROW EXECUTE FUNCTION complete_reservation_on_close();
+
+CREATE OR REPLACE FUNCTION dineniro_reservations(p_restaurant_id VARCHAR, p_from TIMESTAMPTZ, p_to TIMESTAMPTZ)
+RETURNS TABLE(
+    id VARCHAR, table_id VARCHAR, table_label VARCHAR, guest_name VARCHAR, phone VARCHAR, party_size INTEGER,
+    starts_at TIMESTAMPTZ, ends_at TIMESTAMPTZ, status VARCHAR, note VARCHAR, order_id VARCHAR, created_by_name VARCHAR
+)
+LANGUAGE SQL STABLE
+AS $$
+    SELECT r.id, r.table_id, t.label, r.guest_name, r.phone, r.party_size, r.starts_at, r.ends_at, r.status, r.note, r.order_id, u.name
+    FROM reservations r
+    JOIN dining_tables t ON t.id = r.table_id
+    LEFT JOIN users u ON u.id = r.created_by
+    WHERE r.restaurant_id = p_restaurant_id AND r.starts_at < p_to AND r.ends_at > p_from
+    ORDER BY r.starts_at, t.label;
+$$;
+
+-- Creates or changes a booking. Only bookings that are still 'booked' can be changed.
+CREATE OR REPLACE FUNCTION dineniro_reservation_save(
+    p_restaurant_id VARCHAR, p_id VARCHAR, p_table_id VARCHAR, p_guest_name VARCHAR, p_phone VARCHAR, p_party_size INTEGER,
+    p_starts_at TIMESTAMPTZ, p_ends_at TIMESTAMPTZ, p_note VARCHAR, p_user_id VARCHAR
+)
+RETURNS VARCHAR
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_seats INTEGER;
+BEGIN
+    SELECT seats INTO v_seats FROM dining_tables WHERE restaurant_id = p_restaurant_id AND id = p_table_id AND active;
+    IF NOT FOUND THEN RAISE EXCEPTION 'Service Error: that table is not on the floor.'; END IF;
+    IF p_party_size > v_seats + 2 THEN
+        RAISE EXCEPTION 'Service Error: that table seats %, too few for % guests.', v_seats, p_party_size;
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM reservations WHERE id = p_id) THEN
+        UPDATE reservations SET table_id = p_table_id, guest_name = p_guest_name, phone = COALESCE(p_phone, ''), party_size = p_party_size,
+            starts_at = p_starts_at, ends_at = p_ends_at, note = COALESCE(p_note, '')
+        WHERE id = p_id AND restaurant_id = p_restaurant_id AND status = 'booked';
+        IF NOT FOUND THEN
+            IF EXISTS (SELECT 1 FROM reservations WHERE id = p_id AND restaurant_id = p_restaurant_id) THEN
+                RAISE EXCEPTION 'Service Error: only upcoming bookings can be changed.';
+            END IF;
+            RETURN NULL;
+        END IF;
+    ELSE
+        INSERT INTO reservations (id, restaurant_id, table_id, guest_name, phone, party_size, starts_at, ends_at, note, created_by)
+        VALUES (p_id, p_restaurant_id, p_table_id, p_guest_name, COALESCE(p_phone, ''), p_party_size, p_starts_at, p_ends_at, COALESCE(p_note, ''), p_user_id);
+    END IF;
+    RETURN p_id;
+END;
+$$;
+
+-- Cancels a booking or marks a no-show; either frees the table's time.
+CREATE OR REPLACE FUNCTION dineniro_reservation_close(p_restaurant_id VARCHAR, p_id VARCHAR, p_status VARCHAR)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF p_status NOT IN ('cancelled', 'no_show') THEN RAISE EXCEPTION 'Service Error: a booking can only be cancelled or marked as a no-show.'; END IF;
+    UPDATE reservations SET status = p_status WHERE restaurant_id = p_restaurant_id AND id = p_id AND status = 'booked';
+    IF NOT FOUND THEN
+        IF EXISTS (SELECT 1 FROM reservations WHERE restaurant_id = p_restaurant_id AND id = p_id) THEN
+            RAISE EXCEPTION 'Service Error: this booking is no longer upcoming.';
+        END IF;
+        RETURN FALSE;
+    END IF;
+    RETURN TRUE;
+END;
+$$;
+
+-- The party has arrived: open a visit at their table and link it to the booking.
+CREATE OR REPLACE FUNCTION dineniro_reservation_seat(p_restaurant_id VARCHAR, p_id VARCHAR, p_order_id VARCHAR, p_user_id VARCHAR)
+RETURNS VARCHAR
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_booking reservations%ROWTYPE;
+BEGIN
+    SELECT * INTO v_booking FROM reservations WHERE restaurant_id = p_restaurant_id AND id = p_id FOR UPDATE;
+    IF NOT FOUND THEN RETURN NULL; END IF;
+    IF v_booking.status <> 'booked' THEN RAISE EXCEPTION 'Service Error: this booking is no longer upcoming.'; END IF;
+    PERFORM dineniro_order_open(p_restaurant_id, p_order_id, v_booking.table_id, v_booking.party_size, p_user_id);
+    UPDATE reservations SET status = 'seated', order_id = p_order_id,
+        starts_at = LEAST(starts_at, CURRENT_TIMESTAMP)
+    WHERE id = p_id;
+    RETURN p_order_id;
+END;
+$$;
+
+-- Tables that fit the party and are free of bookings for the whole time asked for.
+CREATE OR REPLACE FUNCTION dineniro_tables_available(p_restaurant_id VARCHAR, p_from TIMESTAMPTZ, p_to TIMESTAMPTZ, p_party INTEGER, p_ignore_id VARCHAR DEFAULT NULL)
+RETURNS TABLE(table_id VARCHAR, label VARCHAR, seats INTEGER, section VARCHAR)
+LANGUAGE SQL STABLE
+AS $$
+    SELECT t.id, t.label, t.seats, t.section
+    FROM dining_tables t
+    WHERE t.restaurant_id = p_restaurant_id AND t.active AND t.seats + 2 >= p_party
+      AND NOT EXISTS (
+          SELECT 1 FROM reservations r
+          WHERE r.table_id = t.id AND r.status IN ('booked', 'seated') AND r.id IS DISTINCT FROM p_ignore_id
+            AND tstzrange(r.starts_at, r.ends_at) && tstzrange(p_from, p_to)
+      )
+    ORDER BY (t.seats < p_party), t.seats, t.section, t.sort_order, t.label;
+$$;
+
+-- Waitlist.
+CREATE OR REPLACE FUNCTION dineniro_waitlist(p_restaurant_id VARCHAR)
+RETURNS SETOF waitlist_entries
+LANGUAGE SQL STABLE
+AS $$
+    SELECT * FROM waitlist_entries WHERE restaurant_id = p_restaurant_id AND status = 'waiting' ORDER BY added_at;
+$$;
+
+CREATE OR REPLACE FUNCTION dineniro_waitlist_add(p_restaurant_id VARCHAR, p_id VARCHAR, p_name VARCHAR, p_phone VARCHAR, p_party INTEGER, p_quote INTEGER, p_note VARCHAR)
+RETURNS SETOF waitlist_entries
+LANGUAGE SQL
+AS $$
+    INSERT INTO waitlist_entries (id, restaurant_id, guest_name, phone, party_size, quoted_minutes, note)
+    VALUES (p_id, p_restaurant_id, p_name, COALESCE(p_phone, ''), p_party, COALESCE(p_quote, 15), COALESCE(p_note, ''))
+    RETURNING *;
+$$;
+
+CREATE OR REPLACE FUNCTION dineniro_waitlist_left(p_restaurant_id VARCHAR, p_id VARCHAR)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    UPDATE waitlist_entries SET status = 'left', resolved_at = CURRENT_TIMESTAMP
+    WHERE restaurant_id = p_restaurant_id AND id = p_id AND status = 'waiting';
+    RETURN FOUND;
+END;
+$$;
+
+-- Seats a waiting party at a free table. Refused if the table is booked within the next hour.
+CREATE OR REPLACE FUNCTION dineniro_waitlist_seat(p_restaurant_id VARCHAR, p_id VARCHAR, p_table_id VARCHAR, p_order_id VARCHAR, p_user_id VARCHAR)
+RETURNS VARCHAR
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_entry waitlist_entries%ROWTYPE;
+    v_next TIMESTAMPTZ;
+BEGIN
+    SELECT * INTO v_entry FROM waitlist_entries WHERE restaurant_id = p_restaurant_id AND id = p_id FOR UPDATE;
+    IF NOT FOUND THEN RETURN NULL; END IF;
+    IF v_entry.status <> 'waiting' THEN RAISE EXCEPTION 'Service Error: this party is no longer waiting.'; END IF;
+    SELECT MIN(starts_at) INTO v_next FROM reservations
+    WHERE table_id = p_table_id AND status = 'booked' AND ends_at > CURRENT_TIMESTAMP AND starts_at < CURRENT_TIMESTAMP + INTERVAL '60 minutes';
+    IF v_next IS NOT NULL THEN
+        RAISE EXCEPTION 'Service Error: this table has a booking within the next hour. Choose another table.';
+    END IF;
+    PERFORM dineniro_order_open(p_restaurant_id, p_order_id, p_table_id, v_entry.party_size, p_user_id);
+    UPDATE waitlist_entries SET status = 'seated', resolved_at = CURRENT_TIMESTAMP, order_id = p_order_id WHERE id = p_id;
+    RETURN p_order_id;
+END;
+$$;
+
+-- The floor: every active table with what is happening at it right now, and its next booking.
+-- A free table booked within the next hour (or whose guests are running late) shows as 'reserved'.
+DROP FUNCTION IF EXISTS dineniro_floor(VARCHAR);
+CREATE FUNCTION dineniro_floor(p_restaurant_id VARCHAR)
+RETURNS TABLE(
+    table_id VARCHAR, label VARCHAR, seats INTEGER, section VARCHAR, shape VARCHAR,
+    order_id VARCHAR, guests INTEGER, opened_at TIMESTAMPTZ, server_name VARCHAR,
+    state VARCHAR, running_total NUMERIC, unsent_items BIGINT,
+    next_booking_id VARCHAR, next_booking_at TIMESTAMPTZ, next_booking_name VARCHAR, next_booking_party INTEGER
+)
+LANGUAGE SQL STABLE
+AS $$
+    SELECT t.id, t.label, t.seats, t.section, t.shape,
+           o.id, o.guests, o.opened_at, u.name,
+           CASE
+               WHEN o.id IS NULL AND nb.starts_at < CURRENT_TIMESTAMP + INTERVAL '60 minutes' THEN 'reserved'
+               WHEN o.id IS NULL THEN 'free'
+               WHEN o.status = 'billed' THEN 'bill'
+               WHEN EXISTS (SELECT 1 FROM kitchen_tickets k WHERE k.order_id = o.id AND k.status = 'ready') THEN 'ready'
+               WHEN EXISTS (SELECT 1 FROM kitchen_tickets k WHERE k.order_id = o.id AND k.status IN ('new', 'cooking')) THEN 'cooking'
+               WHEN EXISTS (SELECT 1 FROM kitchen_tickets k WHERE k.order_id = o.id) THEN 'served'
+               ELSE 'seated'
+           END,
+           COALESCE((SELECT SUM(i.unit_price * i.quantity) FROM order_items i WHERE i.order_id = o.id AND i.status <> 'void'), 0),
+           (SELECT COUNT(*) FROM order_items i WHERE i.order_id = o.id AND i.status = 'draft'),
+           nb.id, nb.starts_at, nb.guest_name, nb.party_size
+    FROM dining_tables t
+    LEFT JOIN orders o ON o.restaurant_id = t.restaurant_id AND o.table_id = t.id AND o.status IN ('open', 'billed')
+    LEFT JOIN users u ON u.id = o.opened_by
+    LEFT JOIN LATERAL (
+        SELECT r.id, r.starts_at, r.guest_name, r.party_size FROM reservations r
+        WHERE r.table_id = t.id AND r.status = 'booked' AND r.ends_at > CURRENT_TIMESTAMP
+          AND r.starts_at < CURRENT_TIMESTAMP + INTERVAL '12 hours'
+        ORDER BY r.starts_at LIMIT 1
+    ) nb ON TRUE
+    WHERE t.restaurant_id = p_restaurant_id AND t.active
+    ORDER BY t.section, t.sort_order, t.label;
 $$;
