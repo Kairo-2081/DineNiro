@@ -55,6 +55,8 @@ describe('Inventory', { skip: skipWithoutDatabase }, () => {
     // 0.18 x 160 + 0.22 x 1150 + 1 x 8 = 28.80 + 253 + 8 = 289.80
     assert.equal(dish.foodCost, 289.8);
     assert.equal(dish.portionsLeft, 0, 'nothing has been delivered yet');
+    const plain = (await owner.post(r('/menu-items'), { categoryId: ids.cat, name: 'Plain rice', price: 60 })).body;
+    assert.deepEqual([plain.portionsLeft, plain.foodCost], [null, null], 'a dish without a recipe has no stock limit');
   });
 
   test('deliveries, counts and waste move stock, and every change is in the ledger', async () => {

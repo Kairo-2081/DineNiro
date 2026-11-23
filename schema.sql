@@ -1473,7 +1473,8 @@ AS $$
                SELECT jsonb_agg(jsonb_build_object('id', o.id, 'name', o.name, 'priceDelta', o.price_delta) ORDER BY o.sort_order, o.name)
                FROM menu_item_options o WHERE o.menu_item_id = i.id
            ), '[]'::JSONB),
-           (SELECT GREATEST(MIN(FLOOR(g.on_hand / r.quantity)), 0)::INTEGER
+           -- NULL when there is no recipe (GREATEST alone would turn that into 0).
+           (SELECT CASE WHEN COUNT(*) = 0 THEN NULL ELSE GREATEST(MIN(FLOOR(g.on_hand / r.quantity)), 0)::INTEGER END
               FROM recipe_lines r JOIN ingredients g ON g.id = r.ingredient_id WHERE r.menu_item_id = i.id),
            (SELECT SUM(r.quantity * g.unit_cost) FROM recipe_lines r JOIN ingredients g ON g.id = r.ingredient_id WHERE r.menu_item_id = i.id)
     FROM menu_categories c
