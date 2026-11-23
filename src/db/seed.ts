@@ -19,7 +19,7 @@ const unguessablePassword = () => randomBytes(24).toString('hex');
 /** The admin password comes from the environment. Too short or missing means no admin is created. */
 export const MIN_ADMIN_PASSWORD_LENGTH = 12;
 export const readAdminPassword = (env: NodeJS.ProcessEnv = process.env): string | null => {
-  const value = env.GOCART_ADMIN_PASSWORD ?? '';
+  const value = env.DINENIRO_ADMIN_PASSWORD ?? '';
   return value.length >= MIN_ADMIN_PASSWORD_LENGTH ? value : null;
 };
 
@@ -74,7 +74,7 @@ export async function seedDatabaseIfEmpty() {
     // 2. Seed Admins & Users
     const adminPassword = readAdminPassword();
     if (await countRows('admins') === 0 && !adminPassword) {
-      console.warn(`No admin account created: set GOCART_ADMIN_PASSWORD (at least ${MIN_ADMIN_PASSWORD_LENGTH} characters) and restart.`);
+      console.warn(`No admin account created: set DINENIRO_ADMIN_PASSWORD (at least ${MIN_ADMIN_PASSWORD_LENGTH} characters) and restart.`);
     }
     if (adminPassword && await countRows('admins') === 0) {
       console.log('Seeding initial admin...');
@@ -83,7 +83,7 @@ export async function seedDatabaseIfEmpty() {
         id: initialAdmin.Admin_ID,
         username: initialAdmin.Username || 'admin',
         name: initialAdmin.Name,
-        email: process.env.GOCART_ADMIN_EMAIL?.trim() || initialAdmin.Email,
+        email: process.env.DINENIRO_ADMIN_EMAIL?.trim() || initialAdmin.Email,
         password: adminPassHash,
         number: initialAdmin.Number,
         address_house_name: initialAdmin.Address.House_Name,

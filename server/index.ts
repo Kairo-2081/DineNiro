@@ -94,7 +94,7 @@ async function startServer() {
 
   if (!process.env.VERCEL) {
     app.listen(PORT, '0.0.0.0', () => {
-      console.log(`E-Commerce Server running on http://localhost:${PORT}`);
+      console.log(`DineNiro server running on http://localhost:${PORT}`);
     });
   }
 }

@@ -5,16 +5,16 @@ import { initialAdmin, initialCustomers, initialSellers } from '../src/data/seed
 
 test('no admin password is set: none is created', () => {
   assert.equal(readAdminPassword({}), null);
-  assert.equal(readAdminPassword({ GOCART_ADMIN_PASSWORD: '' }), null);
+  assert.equal(readAdminPassword({ DINENIRO_ADMIN_PASSWORD: '' }), null);
 });
 
 test('a short admin password is refused', () => {
-  assert.equal(readAdminPassword({ GOCART_ADMIN_PASSWORD: 'x'.repeat(MIN_ADMIN_PASSWORD_LENGTH - 1) }), null);
+  assert.equal(readAdminPassword({ DINENIRO_ADMIN_PASSWORD: 'x'.repeat(MIN_ADMIN_PASSWORD_LENGTH - 1) }), null);
 });
 
 test('a long enough admin password is accepted unchanged', () => {
   const value = 'correct-horse-battery-staple';
-  assert.equal(readAdminPassword({ GOCART_ADMIN_PASSWORD: value }), value);
+  assert.equal(readAdminPassword({ DINENIRO_ADMIN_PASSWORD: value }), value);
 });
 
 test('no password is hard-coded in the seed data', () => {

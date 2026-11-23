@@ -12,7 +12,7 @@ const ThemeContext = React.createContext<ThemeContextValue | undefined>(undefine
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = React.useState<Theme>(() => {
     if (typeof window !== 'undefined') {
-      const saved = window.localStorage.getItem('marketpulse_theme');
+      const saved = window.localStorage.getItem('dineniro_theme');
       if (saved === 'light' || saved === 'dark') return saved;
     }
     return 'dark';
@@ -20,7 +20,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     document.documentElement.classList.toggle('dark', theme === 'dark');
-    window.localStorage.setItem('marketpulse_theme', theme);
+    window.localStorage.setItem('dineniro_theme', theme);
   }, [theme]);
 
   const toggleTheme = React.useCallback(() => {
