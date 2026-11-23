@@ -185,7 +185,7 @@ export function BillsScreen({ billId }: { billId?: string }) {
   const selected = billId ?? autoId ?? firstOpen;
 
   return (
-    <div className="flex min-h-screen flex-1 flex-wrap">
+    <div className="flex min-h-screen min-w-0 flex-1 flex-wrap">
       <aside aria-label="Bills" className="relative isolate flex w-full flex-col gap-4 border-r border-gold-hair bg-surface px-5 py-6 lg:w-[320px] lg:flex-none">
         <Motif name="cardamom" className="pointer-events-none absolute -bottom-6 -right-6 -z-10 h-32 w-32 text-gold opacity-10" />
         <ScreenHeader title="Bills" />

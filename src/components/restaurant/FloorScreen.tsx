@@ -8,6 +8,7 @@ import { can, useWorkspace } from './workspace';
 /** Colours from the design. Every state also shows its name in words, so colour is never the only signal. */
 export const TABLE_STATES: Record<TableState, { label: string; tile: string; chip: string }> = {
   free: { label: 'Free', tile: 'border-[1.5px] border-dashed border-[#8c7560] bg-transparent text-[#d9c8b4]', chip: 'border border-dashed border-[#8c7560] text-[#d9c8b4]' },
+  reserved: { label: 'Reserved', tile: 'border-2 border-[#e8b77d] bg-[#261a12] text-[#e8b77d]', chip: 'border-2 border-[#e8b77d] bg-[#261a12] text-[#e8b77d]' },
   seated: { label: 'Seated', tile: 'border-[1.5px] border-[#e8b77d] bg-[#e8b77d] text-[#1a0f08]', chip: 'bg-[#e8b77d] text-[#1a0f08]' },
   cooking: { label: 'Cooking', tile: 'border-[1.5px] border-[#a9532a] bg-[#a9532a] text-[#fff1e2]', chip: 'bg-[#a9532a] text-[#fff1e2]' },
   ready: { label: 'Food ready', tile: 'border-[1.5px] border-[#8dbf8f] bg-[#8dbf8f] text-[#0f1a10] animate-pulse', chip: 'bg-[#8dbf8f] text-[#0f1a10]' },
@@ -18,7 +19,9 @@ export const TABLE_STATES: Record<TableState, { label: string; tile: string; chi
 function TableTile({ table, selected, onSelect, now }: { table: FloorTable; selected: boolean; onSelect: () => void; now: number }) {
   const s = TABLE_STATES[table.state];
   const size = table.shape === 'long' ? 'col-span-2 h-[104px]' : 'h-[104px]';
-  const meta = table.state === 'free' ? `${table.seats} seats` : `${table.guests} · ${minutesSince(table.openedAt, now)}m`;
+  const meta = table.state === 'free' ? `${table.seats} seats`
+    : table.state === 'reserved' && table.nextBooking ? `${clockTime(table.nextBooking.startsAt)} · ${table.nextBooking.partySize}`
+    : `${table.guests} · ${minutesSince(table.openedAt, now)}m`;
   return (
     <button type="button" onClick={onSelect} aria-pressed={selected}
       aria-label={`Table ${table.label}, ${s.label}${table.state === 'free' ? `, ${table.seats} seats` : `, ${table.guests} guests`}`}
@@ -36,6 +39,17 @@ function SeatPanel({ table, onSeated }: { table: FloorTable; onSeated: (orderId:
   const [error, setError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
 
+  const booking = table.nextBooking;
+  const seatBooking = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      onSeated((await calls.seatBooking(booking!.id)).orderId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not seat the booking.');
+      setBusy(false);
+    }
+  };
   if (!can.seat(role)) return <p className="m-0 text-muted">This table is free.</p>;
   const seat = async () => {
     setBusy(true);
@@ -50,6 +64,15 @@ function SeatPanel({ table, onSeated }: { table: FloorTable; onSeated: (orderId:
   return (
     <div className="flex flex-col gap-4">
       <ErrorNote message={error} />
+      {booking && (
+        <div className={`flex flex-col gap-2.5 rounded-md border px-4 py-3 ${table.state === 'reserved' ? 'border-[#e8b77d] bg-[#261a12]' : 'border-gold-line bg-surface-2'}`}>
+          <span className="text-sm">Booked at <span className="font-semibold">{clockTime(booking.startsAt)}</span> for {booking.guestName} ({booking.partySize})</span>
+          {table.state === 'reserved' && (
+            <button type="button" className="btn btn-gold min-h-12" disabled={busy} onClick={() => void seatBooking()}>Seat {booking.guestName}</button>
+          )}
+        </div>
+      )}
+      {table.state === 'reserved' && <p className="m-0 text-sm text-warn">Seating a walk-in here may leave {booking?.guestName} without their table.</p>}
       <div className="flex items-center justify-between rounded-md border border-gold-line bg-surface-2 px-4 py-3">
         <span className="text-sm">Guests</span>
         <span className="flex items-center gap-4">
@@ -65,7 +88,7 @@ function SeatPanel({ table, onSeated }: { table: FloorTable; onSeated: (orderId:
 }
 
 export function FloorScreen() {
-  const { calls, go, role } = useWorkspace();
+  const { calls, go, role, afterSeating } = useWorkspace();
   const now = useNow();
   const { data: floor, error } = usePolling(() => calls.floor(), 10_000, [calls]);
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
@@ -75,10 +98,10 @@ export function FloorScreen() {
   const activeSection = section && sections.includes(section) ? section : sections[0];
   const tables = (floor ?? []).filter((t) => t.section === activeSection);
   const selected = floor?.find((t) => t.tableId === selectedId) ?? null;
-  const busy = (floor ?? []).filter((t) => t.state !== 'free');
+  const busy = (floor ?? []).filter((t) => t.state !== 'free' && t.state !== 'reserved');
 
   return (
-    <div className="flex min-h-screen flex-1 flex-wrap">
+    <div className="flex min-h-screen min-w-0 flex-1 flex-wrap">
       <main className="flex min-w-0 flex-[999_1_560px] flex-col gap-5 px-6 py-6 sm:px-8">
         <ScreenHeader title={<>Floor <Motif name="steam" className="h-8 w-8 text-gold-soft opacity-70" /></>}>
           <div className="flex gap-6 text-right text-[13px] text-muted">
@@ -139,8 +162,8 @@ export function FloorScreen() {
                 <span className={`rounded-full px-2.5 py-1.5 text-xs font-semibold ${TABLE_STATES[selected.state].chip}`}>{TABLE_STATES[selected.state].label}</span>
               </div>
             </div>
-            {selected.state === 'free' ? (
-              <SeatPanel table={selected} onSeated={(orderId) => go({ name: 'order', orderId })} />
+            {selected.state === 'free' || selected.state === 'reserved' ? (
+              <SeatPanel key={selected.tableId} table={selected} onSeated={(orderId) => { setSelectedId(null); afterSeating(orderId); }} />
             ) : (
               <>
                 <dl className="m-0 grid grid-cols-3 gap-px overflow-hidden rounded border border-gold-line bg-gold-line">

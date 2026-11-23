@@ -4,13 +4,14 @@ import { useAuth } from '../../contexts/AuthContext';
 import type { Restaurant, RestaurantMembership } from '../../types';
 import { ErrorNote, HeroBand, Motif, ROLE_LABELS, StatusBadge, TopBar, Wordmark } from '../ui';
 import { BillsScreen } from './BillsScreen';
+import { BookingsScreen } from './BookingsScreen';
 import { FloorScreen } from './FloorScreen';
 import { KitchenScreen } from './KitchenScreen';
 import { OrderScreen } from './OrderScreen';
 import { Rail, ScreenHeader } from './Rail';
 import { SetupScreen } from './SetupScreen';
 import { StaffManager } from './StaffManager';
-import { homeScreen, SCREENS_FOR_ROLE, useWorkspace, WorkspaceContext, type Screen } from './workspace';
+import { can, homeScreen, SCREENS_FOR_ROLE, useWorkspace, WorkspaceContext, type Screen } from './workspace';
 
 const STATUS_COPY = {
   pending: {
@@ -72,6 +73,7 @@ function CurrentScreen({ screen }: { screen: Screen }) {
     case 'order': return <OrderScreen key={screen.orderId} orderId={screen.orderId} />;
     case 'kitchen': return <KitchenScreen />;
     case 'bills': return <BillsScreen billId={screen.billId} />;
+    case 'bookings': return <BookingsScreen />;
     case 'setup': return <SetupScreen />;
     case 'team': return <TeamScreen />;
     default: return <FloorScreen />;
@@ -91,9 +93,13 @@ function ServiceShell({ membership, restaurant, setRestaurant, switchRestaurant 
     window.scrollTo(0, 0);
   }, [membership.role]);
 
+  const afterSeating = React.useCallback((orderId: string) => {
+    go(can.order(membership.role) ? { name: 'order', orderId } : { name: 'floor' });
+  }, [go, membership.role]);
+
   const value = React.useMemo(() => ({
-    session: session!, membership, role: membership.role, restaurant, setRestaurant, calls, screen, go, switchRestaurant,
-  }), [session, membership, restaurant, setRestaurant, calls, screen, go, switchRestaurant]);
+    session: session!, membership, role: membership.role, restaurant, setRestaurant, calls, screen, go, afterSeating, switchRestaurant,
+  }), [session, membership, restaurant, setRestaurant, calls, screen, go, afterSeating, switchRestaurant]);
 
   return (
     <WorkspaceContext.Provider value={value}>
