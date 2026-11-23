@@ -90,6 +90,9 @@ router.get(`${base}/floor`, everyone, async (req: AuthRequest, res) => {
       tableId: r.table_id, label: r.label, seats: r.seats, section: r.section, shape: r.shape, state: r.state,
       orderId: r.order_id, guests: r.guests, openedAt: iso(r.opened_at), serverName: r.server_name,
       runningTotal: money(r.running_total), unsentItems: Number(r.unsent_items || 0),
+      nextBooking: r.next_booking_id
+        ? { id: r.next_booking_id, startsAt: iso(r.next_booking_at)!, guestName: r.next_booking_name, partySize: r.next_booking_party }
+        : null,
     }));
     res.json(floor);
   } catch (error) {
