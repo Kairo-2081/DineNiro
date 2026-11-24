@@ -234,6 +234,24 @@ Service routes, under `/api/restaurants/:restaurantId` for approved restaurants:
 
 <br />
 
+## The brand
+
+<p align="center">
+  <img src="./.github/assets/readme/seal.gif" alt="The DineNiro seal: a brass fork and spoon swing shut, then the name and tagline appear" width="320" />
+</p>
+
+| Logo | Where it goes |
+|---|---|
+| **Seal**: crossed silverware, the name and *From the floor to the bill* in a double ring | 64 px and up: sign-in, loading screens, print and social |
+| **Mark**: the silverware alone on an ink disc | Under 64 px: browser tab, sidebar, top bar, home-screen icon |
+| **Receipt mark**: the disc in black only | The foot of every printed slip |
+
+The name is set in **Cormorant Garamond**, with *Niro* in brass italic, and the tagline in **Inter**. The colours are Ink `#0B0705`, Brass `#D8B37C` and Cream `#F4E9DA`. On sign-in, the seal's fork and spoon swing shut once; people who reduce motion see it still.
+
+In code: `BrandSeal`, `BrandMark` and `BrandLockup` in [`src/components/brand.tsx`](./src/components/brand.tsx), and the icons in `public/`.
+
+<br />
+
 ## Under the hood
 
 - **`schema.sql`**: every table, integrity trigger and query the API runs, as `dineniro_*` PostgreSQL functions. Read the [database design](./docs/database-design.md).
