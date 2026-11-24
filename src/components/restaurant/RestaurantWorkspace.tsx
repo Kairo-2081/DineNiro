@@ -2,7 +2,8 @@ import React from 'react';
 import { api } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Restaurant, RestaurantMembership } from '../../types';
-import { ErrorNote, HeroBand, Motif, ROLE_LABELS, StatusBadge, TopBar, Wordmark } from '../ui';
+import { ErrorNote, HeroBand, Motif, ROLE_LABELS, StatusBadge, TopBar } from '../ui';
+import { BrandSeal } from '../brand';
 import { BillsScreen } from './BillsScreen';
 import { BookingsScreen } from './BookingsScreen';
 import { FloorScreen } from './FloorScreen';
@@ -183,7 +184,7 @@ export function RestaurantWorkspace() {
   if (!restaurant) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4" aria-busy={!error}>
-        <Wordmark size={44} />
+        <BrandSeal size={200} animate />
         <ErrorNote message={error} />
       </div>
     );

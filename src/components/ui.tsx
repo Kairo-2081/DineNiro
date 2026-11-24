@@ -1,4 +1,5 @@
 import React from 'react';
+import { BrandLockup } from './brand';
 import type { RestaurantStatus, StaffRole } from '../types';
 
 /** Gold line drawings from the design. Decorative only. */
@@ -57,19 +58,11 @@ export function Motif({ name, className = '', style }: { name: MotifName; classN
   );
 }
 
-export function Wordmark({ size = 30 }: { size?: number }) {
-  return (
-    <span className="gold-text font-display italic font-medium" style={{ fontSize: size, lineHeight: 1 }}>
-      DineNiro
-    </span>
-  );
-}
-
 export function TopBar({ children }: { children?: React.ReactNode }) {
   return (
     <header className="border-b border-[rgb(216_179_124/0.22)] bg-gradient-to-b from-[#0e0805] to-ink-deep">
       <div className="mx-auto flex min-h-[72px] max-w-[1320px] flex-wrap items-center gap-x-6 gap-y-3 px-6 py-3 sm:px-8">
-        <Wordmark />
+        <BrandLockup />
         {children}
       </div>
       <div className="kantha" aria-hidden="true" />

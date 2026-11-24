@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./.github/assets/readme/banner.jpg" alt="DineNiro — restaurant operations, from the floor to the bill" width="100%" />
+  <img src="./.github/assets/readme/banner.jpg" alt="The DineNiro seal: a brass fork and spoon above the name, from the floor to the bill" width="100%" />
 </p>
 
 <p align="center">

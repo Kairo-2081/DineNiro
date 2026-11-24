@@ -3,6 +3,7 @@ import { api } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { ApplyForm } from './ApplyForm';
 import { ErrorNote, Motif, TopBar } from './ui';
+import { BrandSeal } from './brand';
 
 function SignInForm({ onApply }: { onApply: () => void }) {
   const { setSession } = useAuth();
@@ -65,6 +66,7 @@ export function Landing() {
           <div className="grid items-center gap-12 lg:grid-cols-[1.2fr_1fr]">
             <section className="relative flex flex-col gap-6">
               <Motif name="thali" className="pointer-events-none absolute -left-24 -top-24 -z-10 h-[420px] w-[420px] text-gold opacity-[0.07]" />
+              <BrandSeal size={168} animate className="mb-2" />
               <span className="eyebrow">Restaurant operations</span>
               <h1 className="m-0 font-display text-6xl font-medium leading-[0.95] sm:text-7xl">
                 Run the floor, <span className="gold-text italic">the kitchen</span> and the bill from one place.

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { Motif } from '../ui';
+import { BrandMark } from '../brand';
 import { SCREENS_FOR_ROLE, useWorkspace, type Screen, type ScreenName } from './workspace';
 
 const ICONS: Record<ScreenName, React.ReactNode> = {
@@ -34,9 +34,8 @@ export function Rail() {
 
   return (
     <nav aria-label="Main" className="sticky top-0 flex h-screen w-[76px] flex-none flex-col items-center gap-1.5 overflow-y-auto border-r border-gold-hair bg-ink-deep px-1 py-5 sm:w-[88px]">
-      <div className="relative isolate mb-3 flex h-[60px] w-[60px] items-center justify-center">
-        <Motif name="anise" className="absolute inset-0 -z-10 text-gold opacity-40" />
-        <span className="gold-text font-display text-[28px] italic">Dn</span>
+      <div className="mb-3 flex h-[60px] w-[60px] items-center justify-center">
+        <BrandMark size={52} title="DineNiro" />
       </div>
       {SCREENS_FOR_ROLE[role].map((name) => {
         const active = current === name;
