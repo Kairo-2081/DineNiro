@@ -2,6 +2,7 @@ import React from 'react';
 import { clockTime, taka, usePolling } from '../../lib/format';
 import { PAYMENT_METHODS, type PaymentMethod, type Receipt } from '../../types';
 import { ErrorNote, Motif } from '../ui';
+import { BrandMark } from '../brand';
 import { ScreenHeader } from './Rail';
 import { can, useWorkspace } from './workspace';
 
@@ -39,6 +40,7 @@ function PrintedReceipt({ receipt }: { receipt: Receipt }) {
       {bill.payments.map((p) => row(METHOD_LABELS[p.method] + (p.reference ? ` ${p.reference}` : ''), p.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })))}
       {change > 0 && row('Change', change.toLocaleString('en-IN', { minimumFractionDigits: 2 }))}
       {restaurant.receiptFooter && <><div className="border-t border-dashed border-[#6b5643]" /><div className="text-center">{restaurant.receiptFooter}</div></>}
+      <div className="mt-1 flex items-center justify-center gap-1.5 text-[10px]"><BrandMark size={18} tone="mono" />Powered by DineNiro</div>
     </div>
   );
 }
