@@ -181,3 +181,43 @@ body::after {
     background: #fff !important;
   }
 }
+
+/* The seal. Cutlery is placed with CSS so it can swing shut; the resting state is the logo. */
+.dn-seal .dn-fork,
+.dn-seal .dn-spoon {
+  transform-box: view-box;
+  transform-origin: 0 0;
+}
+.dn-seal .dn-fork { transform: translate(200px, 128px) rotate(-22deg) scale(2.15); }
+.dn-seal .dn-spoon { transform: translate(200px, 128px) rotate(22deg) scale(2.15); }
+.dn-seal .dn-rule { transform-box: fill-box; transform-origin: center; }
+
+.dn-seal.is-animated .dn-fork { animation: dn-fork-shut 1.5s both; }
+.dn-seal.is-animated .dn-spoon { animation: dn-spoon-shut 1.5s both; }
+.dn-seal.is-animated .dn-name { animation: dn-rise 0.7s ease-out 1.05s both; }
+.dn-seal.is-animated .dn-rule { animation: dn-draw 0.6s ease-out 1.4s both; }
+.dn-seal.is-animated .dn-tag { animation: dn-fade 0.7s ease-out 1.65s both; }
+
+@keyframes dn-fork-shut {
+  0% { transform: translate(200px, 128px) rotate(-80deg) scale(2.15); opacity: 0; animation-timing-function: cubic-bezier(.55, 0, .25, 1); }
+  20% { opacity: 1; }
+  80% { transform: translate(200px, 128px) rotate(-18deg) scale(2.15); animation-timing-function: ease-out; }
+  100% { transform: translate(200px, 128px) rotate(-22deg) scale(2.15); opacity: 1; }
+}
+@keyframes dn-spoon-shut {
+  0% { transform: translate(200px, 128px) rotate(80deg) scale(2.15); opacity: 0; animation-timing-function: cubic-bezier(.55, 0, .25, 1); }
+  20% { opacity: 1; }
+  80% { transform: translate(200px, 128px) rotate(18deg) scale(2.15); animation-timing-function: ease-out; }
+  100% { transform: translate(200px, 128px) rotate(22deg) scale(2.15); opacity: 1; }
+}
+@keyframes dn-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes dn-draw { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes dn-fade { from { opacity: 0; } to { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .dn-seal.is-animated .dn-fork,
+  .dn-seal.is-animated .dn-spoon,
+  .dn-seal.is-animated .dn-name,
+  .dn-seal.is-animated .dn-rule,
+  .dn-seal.is-animated .dn-tag { animation: none; }
+}
