@@ -153,8 +153,8 @@ evening's report updates.
 <p><b>Take the order.</b> Dishes by category or search, with priced options and a note for the kitchen. Nothing reaches the kitchen until <i>Send</i>.</p>
 </td>
 <td width="50%" valign="top">
-<img src="./.github/assets/readme/app-order-stock.jpg" alt="Order screen where a dish shows how many portions are left in stock" width="100%" />
-<p><b>Know what's left.</b> When an ingredient runs low, the dish shows how many portions remain. Sold-out dishes can't be ordered.</p>
+<img src="./.github/assets/readme/app-order-stock.jpg" alt="Order screen for Table T1 whose ticket lists dishes already sent to the kitchen and waiting in its queue" width="100%" />
+<p><b>Follow what's been sent.</b> Dishes already with the kitchen stay on the ticket with their place in its queue. When stock runs low, a dish shows how many portions are left.</p>
 </td>
 </tr>
 </table>
