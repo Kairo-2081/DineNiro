@@ -13,6 +13,7 @@ the kitchen and the till, with every restaurant approved before it goes live.
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15%2B%20·%20raw%20SQL-0b0705?style=flat-square&logo=postgresql&logoColor=d8b37c)
 ![Tests](https://img.shields.io/badge/tests-38%20against%20real%20Postgres-0b0705?style=flat-square&logo=nodedotjs&logoColor=d8b37c)
 ![Payments](https://img.shields.io/badge/payments-cash%20·%20card%20·%20bKash%20·%20Nagad-0b0705?style=flat-square)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-0b0705?style=flat-square&logo=apache&logoColor=d8b37c)](./LICENSE)
 ![Hosting](https://img.shields.io/badge/hosted-Render%20+%20Neon%20·%20Singapore-0b0705?style=flat-square&logo=render&logoColor=d8b37c)
 
 [Live app](https://dineniro-xhdy.onrender.com) ·
@@ -734,6 +735,7 @@ tests/                Node test-runner integration tests against PostgreSQL
 docs/                 database design
 public/               favicon, home-screen icons and the web manifest
 render.yaml           the Render service
+LICENSE, NOTICE       Apache License 2.0 and the trademark note
 ```
 
 ## Project status and next steps
@@ -753,7 +755,9 @@ render.yaml           the Render service
 
 ## License
 
-No licence has been chosen yet, so all rights are reserved by the author.
+Apache License 2.0. See [LICENSE](./LICENSE) and [NOTICE](./NOTICE).
+
+The licence covers the code. The DineNiro name, seal and mark are not licensed with it: forks are welcome, but under their own name and logo.
 
 <br />
 
