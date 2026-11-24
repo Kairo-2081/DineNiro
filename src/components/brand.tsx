@@ -59,6 +59,8 @@ export function BrandMark({ size = 40, tone = 'brass', title, className }: {
       role={title ? 'img' : undefined} aria-label={title} aria-hidden={title ? undefined : true}>
       {!mono && <defs><Brass id={id} /></defs>}
       <circle cx="32" cy="32" r="31" fill={background} />
+      {/* On the app's near-black screens the disc needs an edge to read as a disc. */}
+      {!mono && size >= 28 && <circle cx="32" cy="32" r="30" fill="none" stroke={fill} strokeWidth={size >= 48 ? 1 : 1.6} opacity="0.75" />}
       <Cutlery fill={fill} background={background}
         transform={[`translate(32 32.4) rotate(-22) scale(${scale})`, `translate(32 32.4) rotate(22) scale(${scale})`]} />
     </svg>
