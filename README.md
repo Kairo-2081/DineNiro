@@ -159,7 +159,9 @@ The schema applies itself on start-up. Sign in as `admin`, apply for a restauran
 2. In Render choose **New → Blueprint**, pick this repo, and paste the Neon string as `DATABASE_URL`.
 3. Render generates `JWT_SECRET` and `DINENIRO_ADMIN_PASSWORD`. On first start the app builds the schema and the admin account; the password is under the service's **Environment** tab.
 
-Every push to `main` redeploys. The free plan sleeps after 15 idle minutes and takes about a minute to wake — use Starter for a restaurant in real service.
+4. Give Render's GitHub app access to this repository: GitHub → **Settings → Applications → Render → Configure**, then add the repo. Without it the first deploy still works, but pushes to `main` never trigger another one.
+
+Once that's set, every merge to `main` redeploys. If a deploy doesn't start, use **Manual Deploy → Deploy latest commit** on the service. The free plan sleeps after 15 idle minutes and takes about a minute to wake — use Starter for a restaurant in real service.
 
 </details>
 
