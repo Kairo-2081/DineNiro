@@ -47,7 +47,7 @@ Order by category or search, with priced options (“Extra aloo +৳30”) and k
 Tickets move **New → Cooking → Ready → Served**, filtered by station. Timers turn amber at 10 minutes and red when late; the floor sees ready food instantly.
 
 ### 🧾 Bills & payment
-Discount (managers only), then service charge, then VAT at the restaurant's own rates. Split by guests; pay by cash with change, card, **bKash** or **Nagad**. Receipts print on 80 mm thermal paper with the restaurant's BIN.
+Discount (managers only), then service charge, then VAT at the restaurant's own rates. Split by guests; pay by cash with change, card, **bKash** or **Nagad**. Receipts print on 80 mm thermal paper with the restaurant's name and BIN at the top, and a small DineNiro mark at the foot.
 
 </td>
 <td width="50%" valign="top">
@@ -102,6 +102,8 @@ Every request is checked against the user's membership, and composite keys stop 
 </td>
 </tr>
 </table>
+
+**On the tablet.** Open DineNiro in the browser and choose *Add to Home Screen*. It installs with its own brass icon and opens full screen, like an app, so the floor tablet and the kitchen screen never show a browser bar.
 
 <details>
 <summary><b>Who can do what</b></summary>
