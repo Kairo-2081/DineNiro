@@ -9,6 +9,8 @@
   &nbsp;&nbsp;·&nbsp;&nbsp;
   <a href="#get-started">Get started</a>
   &nbsp;&nbsp;·&nbsp;&nbsp;
+  <a href="#the-brand">The brand</a>
+  &nbsp;&nbsp;·&nbsp;&nbsp;
   <a href="./docs/database-design.md">Database design</a>
 </p>
 
