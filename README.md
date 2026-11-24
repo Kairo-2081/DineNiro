@@ -9,6 +9,8 @@
   &nbsp;&nbsp;·&nbsp;&nbsp;
   <a href="#get-started">Get started</a>
   &nbsp;&nbsp;·&nbsp;&nbsp;
+  <a href="#the-brand">The brand</a>
+  &nbsp;&nbsp;·&nbsp;&nbsp;
   <a href="./docs/database-design.md">Database design</a>
 </p>
 
@@ -47,7 +49,7 @@ Order by category or search, with priced options (“Extra aloo +৳30”) and k
 Tickets move **New → Cooking → Ready → Served**, filtered by station. Timers turn amber at 10 minutes and red when late; the floor sees ready food instantly.
 
 ### 🧾 Bills & payment
-Discount (managers only), then service charge, then VAT at the restaurant's own rates. Split by guests; pay by cash with change, card, **bKash** or **Nagad**. Receipts print on 80 mm thermal paper with the restaurant's BIN.
+Discount (managers only), then service charge, then VAT at the restaurant's own rates. Split by guests; pay by cash with change, card, **bKash** or **Nagad**. Receipts print on 80 mm thermal paper with the restaurant's name and BIN at the top, and a small DineNiro mark at the foot.
 
 </td>
 <td width="50%" valign="top">
@@ -103,6 +105,8 @@ Every request is checked against the user's membership, and composite keys stop 
 </tr>
 </table>
 
+**On the tablet.** Open DineNiro in the browser and choose *Add to Home Screen*. It installs with its own brass icon and opens full screen, like an app, so the floor tablet and the kitchen screen never show a browser bar.
+
 <details>
 <summary><b>Who can do what</b></summary>
 <br />
@@ -157,7 +161,9 @@ The schema applies itself on start-up. Sign in as `admin`, apply for a restauran
 2. In Render choose **New → Blueprint**, pick this repo, and paste the Neon string as `DATABASE_URL`.
 3. Render generates `JWT_SECRET` and `DINENIRO_ADMIN_PASSWORD`. On first start the app builds the schema and the admin account; the password is under the service's **Environment** tab.
 
-Every push to `main` redeploys. The free plan sleeps after 15 idle minutes and takes about a minute to wake — use Starter for a restaurant in real service.
+4. Give Render's GitHub app access to this repository: GitHub → **Settings → Applications → Render → Configure**, then add the repo. Without it the first deploy still works, but pushes to `main` never trigger another one.
+
+Once that's set, every merge to `main` redeploys. If a deploy doesn't start, use **Manual Deploy → Deploy latest commit** on the service. The free plan sleeps after 15 idle minutes and takes about a minute to wake — use Starter for a restaurant in real service.
 
 </details>
 
@@ -227,6 +233,24 @@ Service routes, under `/api/restaurants/:restaurantId` for approved restaurants:
 | `GET` | `/reports?from=&to=&tz=` | sales report with the previous period |
 
 </details>
+
+<br />
+
+## The brand
+
+<p align="center">
+  <img src="./.github/assets/readme/seal.gif" alt="The DineNiro seal: a brass fork and spoon swing shut, then the name and tagline appear" width="320" />
+</p>
+
+| Logo | Where it goes |
+|---|---|
+| **Seal**: crossed silverware, the name and *From the floor to the bill* in a double ring | 64 px and up: sign-in, loading screens, print and social |
+| **Mark**: the silverware alone on an ink disc | Under 64 px: browser tab, sidebar, top bar, home-screen icon |
+| **Receipt mark**: the disc in black only | The foot of every printed slip |
+
+The name is set in **Cormorant Garamond**, with *Niro* in brass italic, and the tagline in **Inter**. The colours are Ink `#0B0705`, Brass `#D8B37C` and Cream `#F4E9DA`. On sign-in, the seal's fork and spoon swing shut once; people who reduce motion see it still.
+
+In code: `BrandSeal`, `BrandMark` and `BrandLockup` in [`src/components/brand.tsx`](./src/components/brand.tsx), and the icons in `public/`.
 
 <br />
 
